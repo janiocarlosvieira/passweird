@@ -1,0 +1,89 @@
+# =============================================================================
+# Passweird — .gitignore
+#
+# A primeira seção não é higiene, é segurança: este é um gerador de senhas e
+# chaves, e o custo de commitar um arquivo errado é vazar credenciais. As regras
+# abaixo são deliberadamente amplas. Para versionar algo que elas capturem por
+# engano, use "git add -f <arquivo>" — e olhe o conteúdo antes.
+# =============================================================================
+
+# --- Material secreto ---------------------------------------------------------
+
+# Diretório de estado do Passweird (master.hash, passweird.log, hosts.enc,
+# fido2.cred, exports). Normalmente vive em ~/.passweird, mas aparece aqui se
+# alguém rodar com HOME apontado para o projeto — como a suíte de testes faz.
+.passweird/
+
+# Exports de chaveiro e arquivos lidos pelo processamento em lote (ADR-0005).
+# Todo formato suportado (KeePassXC, Bitwarden, Chrome, Firefox…) é CSV com as
+# senhas em TEXTO PURO. Neste repositório, qualquer .csv é suspeito por padrão.
+*.csv
+password-*-*.csv
+
+# Keyfiles de segundo fator (--gen-keyfile) e credenciais FIDO2.
+*.key
+*.cred
+
+# Material assimétrico gerado por --ssh / --ssl / --rsa / --pgp, caso alguém
+# redirecione a saída para um arquivo em vez de copiar do terminal.
+*.pem
+*.crt
+*.pub
+*.asc
+*.gpg
+id_ed25519*
+id_rsa*
+
+# Senha-mestra ou segredo temporal em arquivo (--master-file,
+# --temporal-secret-file). Formatos declaradamente inseguros, nunca versionados.
+*.secret
+master.txt
+temporal.txt
+
+# --- Python -------------------------------------------------------------------
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Empacotamento
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+ENV/
+
+# --- Ambiente e editores ------------------------------------------------------
+
+.env
+.env.*
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.\#*
+\#*\#
+
+# --- Sistema operacional ------------------------------------------------------
+
+.DS_Store
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini

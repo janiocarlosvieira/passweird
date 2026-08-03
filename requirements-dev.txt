@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest
+# Test-only: independent Baillie-PSW primality check, used to cross-verify the
+# hand-rolled Miller-Rabin in crypto.py. Never imported at runtime.
+sympy
