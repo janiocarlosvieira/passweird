@@ -1,6 +1,6 @@
 # ADR-0006 — Formato do log e detecção por registro
 
-**Status:** Proposto
+**Status:** Aceito (implementado)
 **Data:** 2026-08-03
 
 ## Contexto

@@ -101,6 +101,7 @@ TRANSLATIONS = {
         "temporal_weak_hint": "Prefira 6+ palavras sorteadas ao acaso (~78 bits, e esse número vale mesmo que o atacante conheça o método). Desconfie de frases espertas: um medidor de força daria ~147 bits para '[mYpAsswordiSaUgustoF26]', enquanto um ataque por regras a alcança em ~40. Veja docs/adr/0003 e o README.",
         "temporal_weak_cn": "O nome do contexto é publicado junto com este artefato (CN do certificado / UID do PGP), então ele também não acrescenta entropia aqui.",
         "rsa_slow": "Derivando primos RSA, isso pode levar alguns segundos...",
+        "arg_rsa_invalid": "--rsa deve ser no mínimo 2048 e múltiplo de 16 (recebido %d)",
         "arg_gen_temporal": "Sorteia um segredo temporal de N palavras (padrão 6) e informa sua entropia",
         "gen_temporal_title": "=== Segredo Temporal Sorteado ===",
         "gen_temporal_bits": "Entropia: {:.0f} bits (origem: {})",
@@ -204,6 +205,17 @@ TRANSLATIONS = {
         "arg_fido2": "Usa la llave de seguridad FIDO2 registrada como factor adicional",
         "arg_encrypt_list": "Cifra una lista externa de sitios/sistemas (hosts)",
         "arg_view_list": "Descifra y muestra la lista guardada de sitios/sistemas",
+        "arg_rsa_invalid": "--rsa debe ser al menos 2048 y múltiplo de 16 (recibido %d)",
+        "arg_gen_temporal": "Sortea un secreto temporal de N palabras (por defecto 6) e informa su entropía",
+        "gen_temporal_title": "=== Secreto Temporal Sorteado ===",
+        "gen_temporal_bits": "Entropía: {:.0f} bits (origen: {})",
+        "gen_temporal_warn": "Anótelo en un lugar seguro antes de usarlo: no es recuperable, y perderlo significa perder todo secreto derivado con él.",
+        "temporal_weak_empty": "ATENCIÓN: sin secreto temporal. Su contraseña maestra pasa a ser el único secreto que protege esta clave publicada.",
+        "temporal_weak_numeric": "ATENCIÓN: un secreto temporal con forma de fecha ('2026/01', '08/2026') casi no aporta entropía — valores así se agotan en segundos.",
+        "temporal_weak_short": "ATENCIÓN: secreto temporal demasiado corto. La longitud por sí sola no es fuerza, pero por debajo de 12 caracteres no hay espacio para ninguna.",
+        "temporal_weak_hint": "Prefiera 6+ palabras elegidas al azar (~78 bits, y esa cifra vale incluso si el atacante conoce el método). Desconfíe de frases ingeniosas: un medidor de fuerza daría ~147 bits a '[mYpAsswordiSaUgustoF26]', mientras que un ataque por reglas la alcanza en ~40. Vea docs/adr/0003 y el README.",
+        "temporal_weak_cn": "El nombre del contexto se publica junto con este artefacto (CN del certificado / UID de PGP), así que tampoco aporta entropía aquí.",
+        "rsa_slow": "Derivando primos RSA, esto puede tardar unos segundos...",
         "arg_view_log": "Descifra y muestra todo el historial de logs local",
 
         "master_prompt": "Contraseña maestra: ",
@@ -303,6 +315,17 @@ TRANSLATIONS = {
         "arg_fido2": "Utilise la clé de sécurité FIDO2 enregistrée comme facteur supplémentaire",
         "arg_encrypt_list": "Chiffre un fichier texte externe contenant des hôtes/systèmes",
         "arg_view_list": "Déchiffre et affiche la liste enregistrée d'hôtes/systèmes",
+        "arg_rsa_invalid": "--rsa doit valoir au moins 2048 et être un multiple de 16 (reçu %d)",
+        "arg_gen_temporal": "Tire au sort un secret temporel de N mots (6 par défaut) et indique son entropie",
+        "gen_temporal_title": "=== Secret Temporel Tiré au Sort ===",
+        "gen_temporal_bits": "Entropie : {:.0f} bits (source : {})",
+        "gen_temporal_warn": "Notez-le en lieu sûr avant de l'utiliser : il n'est pas récupérable, et le perdre revient à perdre tout secret qui en dérive.",
+        "temporal_weak_empty": "ATTENTION : aucun secret temporel. Votre mot de passe maître devient le seul secret protégeant cette clé publiée.",
+        "temporal_weak_numeric": "ATTENTION : un secret temporel en forme de date ('2026/01', '08/2026') n'apporte presque aucune entropie — de telles valeurs sont épuisées en quelques secondes.",
+        "temporal_weak_short": "ATTENTION : secret temporel trop court. La longueur seule n'est pas la force, mais en dessous de 12 caractères il n'y a de place pour aucune.",
+        "temporal_weak_hint": "Préférez 6+ mots tirés au hasard (~78 bits, et ce chiffre tient même si l'attaquant connaît la méthode). Méfiez-vous des phrases astucieuses : un indicateur de force donnerait ~147 bits à '[mYpAsswordiSaUgustoF26]', alors qu'une attaque par règles l'atteint vers 40. Voir docs/adr/0003 et le README.",
+        "temporal_weak_cn": "Le nom du contexte est publié avec cet artefact (CN du certificat / UID PGP), il n'apporte donc aucune entropie ici non plus.",
+        "rsa_slow": "Dérivation des nombres premiers RSA, cela peut prendre quelques secondes...",
         "arg_view_log": "Déchiffre et affiche tout l'historique local des journaux",
 
         "master_prompt": "Mot de passe maître : ",
@@ -402,6 +425,17 @@ TRANSLATIONS = {
         "arg_fido2": "Verwendet den registrierten FIDO2-Sicherheitsschlüssel als zusätzlichen Faktor",
         "arg_encrypt_list": "Verschlüsselt eine externe Textdatei mit Hosts/Systemen",
         "arg_view_list": "Entschlüsselt und zeigt die gespeicherte Hosts-/Systemliste an",
+        "arg_rsa_invalid": "--rsa muss mindestens 2048 und ein Vielfaches von 16 sein (erhalten: %d)",
+        "arg_gen_temporal": "Zieht ein zufälliges temporäres Geheimnis aus N Wörtern (Standard 6) und nennt dessen Entropie",
+        "gen_temporal_title": "=== Zufälliges Temporäres Geheimnis ===",
+        "gen_temporal_bits": "Entropie: {:.0f} Bit (Quelle: {})",
+        "gen_temporal_warn": "Notieren Sie es sicher, bevor Sie es verwenden: es ist nicht wiederherstellbar, und sein Verlust bedeutet den Verlust jedes damit abgeleiteten Geheimnisses.",
+        "temporal_weak_empty": "ACHTUNG: kein temporäres Geheimnis. Ihr Master-Passwort wird damit zum einzigen Schutz dieses veröffentlichten Schlüssels.",
+        "temporal_weak_numeric": "ACHTUNG: ein datumsförmiges temporäres Geheimnis ('2026/01', '08/2026') fügt kaum Entropie hinzu — solche Werte sind in Sekunden erschöpft.",
+        "temporal_weak_short": "ACHTUNG: temporäres Geheimnis zu kurz. Länge allein ist keine Stärke, aber unter 12 Zeichen ist für gar keine Platz.",
+        "temporal_weak_hint": "Bevorzugen Sie 6+ zufällig gezogene Wörter (~78 Bit, und dieser Wert gilt auch dann, wenn der Angreifer die Methode kennt). Misstrauen Sie cleveren Phrasen: eine Stärkeanzeige gäbe '[mYpAsswordiSaUgustoF26]' etwa 147 Bit, während ein regelbasierter Angriff sie bei rund 40 erreicht. Siehe docs/adr/0003 und die README.",
+        "temporal_weak_cn": "Der Kontextname wird mit diesem Artefakt veröffentlicht (Zertifikats-CN / PGP-UID) und trägt hier daher ebenfalls keine Entropie bei.",
+        "rsa_slow": "RSA-Primzahlen werden abgeleitet, das kann einige Sekunden dauern...",
         "arg_view_log": "Entschlüsselt und zeigt den gesamten lokalen Protokollverlauf an",
 
         "master_prompt": "Master-Passwort: ",
@@ -501,6 +535,17 @@ TRANSLATIONS = {
         "arg_fido2": "使用已注册的FIDO2安全密钥作为附加因素",
         "arg_encrypt_list": "加密包含主机/系统的外部文本文件",
         "arg_view_list": "解密并显示已保存的主机/系统列表",
+        "arg_rsa_invalid": "--rsa 必须至少为 2048 且是 16 的倍数（收到 %d）",
+        "arg_gen_temporal": "随机抽取 N 个词的临时密钥（默认 6 个）并报告其熵值",
+        "gen_temporal_title": "=== 随机生成的临时密钥 ===",
+        "gen_temporal_bits": "熵值：{:.0f} 位（来源：{}）",
+        "gen_temporal_warn": "使用前请妥善记录：它无法恢复，丢失它就等于丢失由它派生的所有密钥。",
+        "temporal_weak_empty": "警告：未设置临时密钥。您的主密码将成为保护这个已公开密钥的唯一秘密。",
+        "temporal_weak_numeric": "警告：日期形式的临时密钥（'2026/01'、'08/2026'）几乎不增加熵——这类取值几秒内即可穷举。",
+        "temporal_weak_short": "警告：临时密钥过短。长度本身不等于强度，但低于 12 个字符就没有容纳强度的空间。",
+        "temporal_weak_hint": "请使用 6 个以上随机抽取的单词（约 78 位，且即使攻击者知晓方法该数值依然成立）。当心看似巧妙的短语：强度计会给 '[mYpAsswordiSaUgustoF26]' 约 147 位，而基于规则的攻击约 40 位即可破解。参见 docs/adr/0003 和 README。",
+        "temporal_weak_cn": "上下文名称会随该产物一同公开（证书 CN / PGP UID），因此在这里同样不增加熵。",
+        "rsa_slow": "正在派生 RSA 素数，这可能需要几秒钟……",
         "arg_view_log": "解密并显示完整的本地日志历史",
 
         "master_prompt": "主密码：",
@@ -815,14 +860,24 @@ def log_hashes_to_file(line, master_hash=None, encrypt=True):
 
 def read_logs_from_file(master_hash=None):
     """
-    Reads the log, auto-detecting plaintext (--plain-log) vs AES-GCM-encrypted
-    (default) format. Plaintext log lines always start with a 14-digit
-    YYYYMMDDHHMMSS date_str (see build_and_log_line), which can never
-    coincide with an encrypted block's raw 4-byte length prefix — used here
-    as an unambiguous format discriminator. (Previously this tried to detect
-    the format via exception-based fallback, but misparsing plaintext bytes
-    as fake binary length-prefixed blocks doesn't actually raise — it just
-    silently reads garbage until EOF, so the plaintext fallback never fired.)
+    Reads the log, detecting plaintext (--plain-log) vs AES-GCM-encrypted (default)
+    format *per record*.
+
+    Plaintext lines always start with a 14-digit YYYYMMDDHHMMSS date_str (see
+    build_and_log_line), which can never coincide with an encrypted block's raw
+    4-byte length prefix: any realistic payload length starts with null bytes, and
+    a null byte is not an ASCII digit. That discriminator was already sound — what
+    was wrong was applying it once to the first 14 bytes of the file and then
+    treating the whole file as being of that type.
+
+    Since the format is chosen per execution and the file is append-only, a single
+    log can hold both formats interleaved in any order — using --plain-log once and
+    then going back to the default is enough. Under the file-wide detection that
+    produced a UnicodeDecodeError in one order and, worse, silently dropped records
+    in the other. Deciding per record removes both.
+
+    A file truncated mid-block (power loss during a write) yields every intact
+    record read up to that point rather than raising.
     """
     log_path = os.path.expanduser("~/.passweird/passweird.log")
     if not os.path.exists(log_path):
@@ -830,22 +885,32 @@ def read_logs_from_file(master_hash=None):
 
     with open(log_path, "rb") as f:
         raw = f.read()
-    if not raw:
-        return []
-
-    if raw[:14].isascii() and raw[:14].decode("ascii").isdigit():
-        return [line.strip() for line in raw.decode("utf-8").splitlines() if line.strip()]
 
     records = []
     offset = 0
-    while offset + 4 <= len(raw):
+    total = len(raw)
+    while offset < total:
+        if raw[offset:offset + 14].isdigit():
+            end = raw.find(b"\n", offset)
+            if end == -1:
+                end = total
+            line = raw[offset:end].decode("utf-8", errors="replace").strip()
+            if line:
+                records.append(line)
+            offset = end + 1
+            continue
+
+        if offset + 4 > total:
+            break
         block_len = int.from_bytes(raw[offset:offset + 4], byteorder="big")
         offset += 4
-        encrypted_payload = raw[offset:offset + block_len]
+        if block_len == 0 or offset + block_len > total:
+            break  # truncated or corrupt: keep what was already read
+        payload = raw[offset:offset + block_len]
         offset += block_len
         if master_hash:
             try:
-                records.append(crypto.decrypt_data(master_hash, encrypted_payload))
+                records.append(crypto.decrypt_data(master_hash, payload))
             except ValueError:
                 continue
     return records

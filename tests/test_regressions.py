@@ -3,12 +3,14 @@ Dedicated regression tests for the two live bugs found in the pre-refactor
 audit: (B1) main.py used hashlib without importing it on the --key-file path,
 (B2) crypto.py used datetime.UTC, which doesn't exist before Python 3.11.
 """
+import os
 import sys
 
 from cryptography import x509
 
 import crypto
 import main
+import storage
 
 
 def test_b1_keyfile_path_does_not_raise_nameerror(tmp_path, monkeypatch):
@@ -61,7 +63,10 @@ def test_certificate_validity_anchored_to_utc_midnight():
     assert cert1 == cert2
 
     parsed = x509.load_pem_x509_certificate(cert1.encode())
-    before, after = parsed.not_valid_before, parsed.not_valid_after
+    # cryptography >= 42 deprecates not_valid_before in favour of the _utc variants;
+    # requirements.txt declares a floor, not a ceiling, so read whichever exists.
+    before = getattr(parsed, "not_valid_before_utc", None) or parsed.not_valid_before
+    after = getattr(parsed, "not_valid_after_utc", None) or parsed.not_valid_after
     assert (before.hour, before.minute, before.second, before.microsecond) == (0, 0, 0, 0)
     assert (after.hour, after.minute, after.second, after.microsecond) == (0, 0, 0, 0)
     assert (after - before).days == 366  # now-1d .. now+365d
@@ -181,3 +186,83 @@ def test_pgp_creation_time_is_always_in_the_past():
             )
             assert ctime < now, f"future-dated PGP key for {context!r}/{salt!r}"
             assert ctime >= crypto._PGP_CTIME_EPOCH
+
+
+# --- Mixed-format log --------------------------------------------------------
+# The log format is chosen per execution and the file is append-only, so one file
+# can hold plaintext and encrypted records interleaved. Detection used to inspect
+# only the first 14 bytes of the file and then treat the whole file as that type:
+# UnicodeDecodeError in one order, silent record loss in the other.
+
+def _write_log(entries, master_hash):
+    """entries: list of (text, encrypted?) written in order, as the CLI would."""
+    import storage
+    for text, encrypted in entries:
+        storage.log_hashes_to_file(text, master_hash, encrypt=encrypted)
+
+
+def test_mixed_log_plaintext_then_encrypted(isolated_home):
+    mh = crypto.modified_hash("master")
+    _write_log([("20260101000001 ver:v2 plain-one", False),
+                ("20260101000002 ver:v2 enc-one", True)], mh)
+
+    records = storage.read_logs_from_file(mh)
+    assert len(records) == 2
+    assert "plain-one" in records[0]
+    assert "enc-one" in records[1]
+
+
+def test_mixed_log_encrypted_then_plaintext(isolated_home):
+    """The order that used to lose records with no error at all."""
+    mh = crypto.modified_hash("master")
+    _write_log([("20260101000001 ver:v2 enc-one", True),
+                ("20260101000002 ver:v2 plain-one", False)], mh)
+
+    records = storage.read_logs_from_file(mh)
+    assert len(records) == 2
+    assert "enc-one" in records[0]
+    assert "plain-one" in records[1]
+
+
+def test_mixed_log_alternating(isolated_home):
+    mh = crypto.modified_hash("master")
+    _write_log([("20260101000001 a", True), ("20260101000002 b", False),
+                ("20260101000003 c", True), ("20260101000004 d", False)], mh)
+
+    records = storage.read_logs_from_file(mh)
+    assert len(records) == 4
+    assert [r.split()[-1] for r in records] == ["a", "b", "c", "d"]
+
+
+def test_log_truncated_mid_block_keeps_intact_records(isolated_home):
+    """A power loss during a write must not cost the whole history."""
+    mh = crypto.modified_hash("master")
+    _write_log([("20260101000001 first", True), ("20260101000002 second", True)], mh)
+
+    log_path = os.path.expanduser("~/.passweird/passweird.log")
+    with open(log_path, "rb") as f:
+        raw = f.read()
+    with open(log_path, "wb") as f:
+        f.write(raw[:-10])          # chop the tail of the last block
+
+    records = storage.read_logs_from_file(mh)
+    assert len(records) == 1
+    assert "first" in records[0]
+
+
+def test_empty_and_missing_log(isolated_home):
+    assert storage.read_logs_from_file(crypto.modified_hash("master")) == []
+    log_path = os.path.expanduser("~/.passweird/passweird.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    open(log_path, "wb").close()
+    assert storage.read_logs_from_file(crypto.modified_hash("master")) == []
+
+
+def test_mixed_log_wrong_master_still_returns_plaintext_records(isolated_home):
+    """Encrypted blocks are skipped; plaintext ones are not encrypted at all."""
+    mh = crypto.modified_hash("master")
+    _write_log([("20260101000001 enc", True), ("20260101000002 plain", False)], mh)
+
+    records = storage.read_logs_from_file(crypto.modified_hash("WRONG"))
+    assert len(records) == 1
+    assert "plain" in records[0]

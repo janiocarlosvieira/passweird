@@ -1,7 +1,6 @@
 # Plano de ação
 
-Três frentes, independentes entre si e implementáveis em qualquer ordem. A frente 2 é a mais
-barata e corrige perda de dados; sugiro começar por ela.
+Três frentes, independentes entre si. A frente 2 já foi implementada; restam a 1 e a 3.
 
 ---
 
@@ -89,9 +88,9 @@ de `open()` puro.
 
 ---
 
-## 2. `--view-log` com logs de formato misto
+## 2. `--view-log` com logs de formato misto — ✅ CONCLUÍDO
 
-**Estado verificado.** Funciona em log 100% cifrado e em log 100% texto puro. **Quebra em log
+**Estado verificado (antes da correção).** Funciona em log 100% cifrado e em log 100% texto puro. **Quebra em log
 misto**, que surge naturalmente ao usar `--plain-log` uma vez e voltar ao padrão:
 
 | Ordem | Sintoma |
