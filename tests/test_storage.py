@@ -218,3 +218,44 @@ def test_generated_secret_never_trips_the_weakness_check(monkeypatch, source_pat
     for _ in range(5):
         secret, _, _ = storage.generate_temporal_secret(6)
         assert storage.weak_temporal_secret_reason(secret) is None
+
+
+# --- Consistência da internacionalização --------------------------------------
+
+def test_all_languages_share_the_same_keys():
+    """
+    Uma chave presente só em alguns idiomas não quebra nada (o _() cai para o
+    default em inglês), mas degrada silenciosamente a tradução — exatamente como
+    aconteceu quando as mensagens sobre o segredo temporal foram adicionadas só
+    em pt. Este teste transforma esse silêncio em falha.
+    """
+    languages = storage.TRANSLATIONS
+    reference = set(languages["pt"])
+    for lang, table in languages.items():
+        assert set(table) == reference, (
+            f"{lang} diverge: faltam {sorted(reference - set(table))}, "
+            f"sobram {sorted(set(table) - reference)}"
+        )
+
+
+@pytest.mark.parametrize("key", ["gen_temporal_bits", "arg_rsa_invalid"])
+def test_format_placeholders_match_across_languages(key):
+    """
+    Uma tradução que perca ou renomeie um placeholder só estoura na hora em que a
+    mensagem é exibida — no meio de uma operação, para o usuário daquele idioma.
+    """
+    import re
+
+    def placeholders(text):
+        return (sorted(re.findall(r"\{[^}]*\}", text)), sorted(re.findall(r"%[sd]", text)))
+
+    reference = placeholders(storage.TRANSLATIONS["pt"][key])
+    for lang, table in storage.TRANSLATIONS.items():
+        assert placeholders(table[key]) == reference, f"{lang} diverge em {key}"
+
+
+def test_translations_render_without_raising():
+    """Toda mensagem com placeholder tem que formatar de fato, em todo idioma."""
+    for lang, table in storage.TRANSLATIONS.items():
+        assert table["gen_temporal_bits"].format(92.0, "wordlist")
+        assert table["arg_rsa_invalid"] % 2049

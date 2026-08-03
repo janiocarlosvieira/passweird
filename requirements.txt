@@ -1,4 +1,16 @@
-cryptography
-python-gnupg
-pyotp
-fido2
+# Pisos de versão, não travas exatas.
+#
+# Este é um projeto de criptografia: congelar o usuário na build que por acaso
+# estava na máquina do desenvolvedor (cryptography 3.4.8, de 2021) o privaria de
+# correções de segurança do upstream. O piso documenta contra o que a suíte foi
+# verificada; o teto fica aberto de propósito.
+#
+# Isso não compromete a reprodutibilidade das derivações: todo valor derivado sai
+# de hashlib/hmac da biblioteca padrão. As dependências abaixo apenas serializam e
+# assinam o que já foi derivado, então a versão delas não altera nenhuma chave nem
+# nenhuma senha gerada.
+
+cryptography>=3.4.8      # verificado em 3.4.8
+python-gnupg>=0.4.8      # verificado em 0.4.8 (exige o binário `gpg` no PATH)
+pyotp>=2.10.0            # verificado em 2.10.0
+fido2>=2.2.1             # verificado em 2.2.1 (opcional: usado só por --fido2)
