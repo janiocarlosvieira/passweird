@@ -1,78 +1,78 @@
-# ADR-0001 — Geração determinística de chaves RSA
+# ADR-0001 — Deterministic RSA key generation
 
-**Status:** Aceito
-**Data:** 2026-08-03
+**Status:** Accepted
+**Date:** 2026-08-03
 
-## Contexto
+## Context
 
-A premissa do Passweird é ser *stateless*: nada é guardado em cofre, tudo é recomputado a
-partir da senha mestra mais um contexto. Todas as saídas respeitavam isso — senhas, chaves
-SSH Ed25519, TOTP, PGP — exceto uma. A flag `--rsa BITS` chamava
-`rsa.generate_private_key()` sem qualquer semente, produzindo material novo a cada execução.
-O CLI imprimia um WARNING admitindo o problema e o README o documentava como se fosse
-intransponível: *"a lib não oferece geração seedada de RSA"*.
+Passweird's premise is to be *stateless*: nothing is kept in a vault, everything is recomputed
+from the master password plus a context. Every output honored this — passwords, Ed25519 SSH
+keys, TOTP, PGP — except one. The `--rsa BITS` flag called `rsa.generate_private_key()` with no
+seed at all, producing fresh material on every run. The CLI printed a WARNING admitting the
+problem, and the README documented the limitation as if it were unavoidable: *"the library
+offers no seeded RSA generation"*.
 
-A limitação era da API, não da matemática. A geração de RSA tem exatamente **uma** fonte de
-aleatoriedade: a escolha de p e q. Tudo o mais — `n = p·q`, `d = e⁻¹ mod λ(n)`, os parâmetros
-CRT — já é função determinística desses dois primos.
+The limitation was in the API, not in the mathematics. RSA key generation has exactly **one**
+source of randomness: the choice of p and q. Everything else — `n = p·q`, `d = e⁻¹ mod λ(n)`,
+the CRT parameters — is already a deterministic function of those two primes.
 
-## Decisão
+## Decision
 
-Derivar p e q do mesmo stream HKDF-SHA512 que o resto do projeto já usa (`hkdf_expand`), e
-montar a chave via `rsa.RSAPrivateNumbers(...).private_key()` em vez de
+Derive p and q from the same HKDF-SHA512 stream the rest of the project already uses
+(`hkdf_expand`), and assemble the key via `rsa.RSAPrivateNumbers(...).private_key()` instead of
 `rsa.generate_private_key()`.
 
-Detalhes que fazem parte da decisão:
+Details that are part of the decision:
 
-- **Labels HKDF distintos** para os dois primos (`{app_hash}:rsa_seed:{temporal_salt}:p` e
-  `:q`), seguindo o padrão já estabelecido em `:ssh_seed:`, `:ssl_seed` e `:serial`.
-  Descartada a alternativa de derivar o segundo primo transformando a entrada do usuário (por
-  exemplo, invertendo as palavras-chave): é uma transformação ad-hoc, de baixa diversidade, e
-  não oferece nenhum argumento de independência entre p e q.
-- **O caminho SSL foi uniformizado com os demais geradores** no mesmo change-set: passou a
-  derivar de `app_hash` (não mais do `app` cru) e a receber `temporal_salt`, que antes era
-  calculado em `main.py` e silenciosamente descartado. `domain_context` sobrou apenas como o
-  CN do certificado. Isso invalida qualquer chave SSL Ed25519 emitida antes — aceito porque
-  nenhuma havia sido emitida. Ver ADR-0003 para por que o salt importa tanto aqui.
-- **Sem redução modular para uma faixa.** O candidato é montado forçando os dois bits mais
-  altos a 1 (garante que `p·q` tenha o comprimento pedido) e o bit 0 a 1 (ímpar). Um `mod`
-  sobre um intervalo que não é potência de dois enviesaria a extremidade baixa do intervalo.
-- **Restrições obrigatórias** aplicadas na rejeição: `gcd(e, p−1) = gcd(e, q−1) = 1` (senão
-  `d` não existe) e `|p − q| > 2^(bits/2 − 100)` (FIPS 186-5; sem isso, o método de Fermat
-  fatora o módulo trivialmente).
-- `RSAPrivateNumbers` valida os parâmetros CRT na construção, o que serve de auto-checagem
-  gratuita.
+- **Distinct HKDF labels** for the two primes (`{app_hash}:rsa_seed:{temporal_salt}:p` and
+  `:q`), following the pattern already established by `:ssh_seed:`, `:ssl_seed` and `:serial`.
+  Rejected the alternative of deriving the second prime by transforming the user's input (e.g.
+  reversing the keywords): that is an ad-hoc transform of low diversity, offering no principled
+  argument for independence between p and q.
+- **The SSL path was brought in line with the other generators** in the same change-set: it now
+  derives from `app_hash` (no longer the raw `app`) and accepts `temporal_salt`, which used to be
+  computed in `main.py` and silently discarded. `domain_context` is left only as the
+  certificate's CN. This invalidates any previously issued Ed25519 SSL key — accepted, because
+  none had been issued. See ADR-0003 for why the salt matters so much here.
+- **No modular reduction into a range.** The candidate is built by forcing the top two bits to 1
+  (guarantees `p·q` reaches the requested bit length) and bit 0 to 1 (odd). A `mod` over a span
+  that is not a power of two would bias the low end of that span.
+- **Mandatory constraints** applied during rejection: `gcd(e, p−1) = gcd(e, q−1) = 1` (otherwise
+  `d` does not exist) and `|p − q| > 2^(bits/2 − 100)` (FIPS 186-5; without it, Fermat's method
+  trivially factors the modulus).
+- `RSAPrivateNumbers` validates the CRT parameters on construction, which doubles as a free
+  self-check.
 
-## Consequências
+## Consequences
 
-**Positivas.** `--rsa` passa a honrar a premissa do projeto. O WARNING sai do CLI. O
-certificado inteiro passa a ser reprodutível (ver a nota sobre validade abaixo).
+**Positive.** `--rsa` now honors the project's premise. The WARNING is gone from the CLI. The
+whole certificate becomes reproducible (see the note on validity below).
 
-**Custo.** O projeto passa a carregar aritmética própria de primalidade (crivo de pequenos
-primos + Miller-Rabin), com o risco que código criptográfico caseiro sempre traz — mitigado
-por testes que cruzam nossa primalidade com a implementação independente do `sympy` e por um
-teste de assinatura/verificação que prova que o OpenSSL aceita a chave montada.
+**Cost.** The project now carries its own primality arithmetic (small-prime sieve +
+Miller-Rabin), with the risk that homegrown cryptographic code always carries — mitigated by
+tests that cross-check our primality testing against `sympy`'s independent implementation, and
+by a sign/verify test proving OpenSSL accepts the assembled key.
 
-**Desempenho medido** (CPython puro, sem `gmpy2`, CPU comum): ~0,2–1 s para 2048 bits e
-~1–4 s para 4096 bits. A dispersão é intrínseca — depende de quantos candidatos são
-necessários até cair num primo — e não do hardware. É a mesma ordem de grandeza do
-`openssl genrsa`, então não é um custo novo para o usuário.
+**Measured performance** (pure CPython, no `gmpy2`, ordinary CPU): ~0.2–1s at 2048 bits and
+~1–4s at 4096 bits. The spread is intrinsic — it depends on how many candidates are needed
+before landing on a prime — not on the hardware. It is the same order of magnitude as
+`openssl genrsa`, so it is not a new cost to the user.
 
-**Efeito colateral necessário.** A validade do certificado vinha de `datetime.now()`, que tem
-granularidade de segundo: dois certificados gerados com mais de um segundo de intervalo já
-divergiam. Isso passava despercebido porque Ed25519 gera em microssegundos; com RSA levando
-segundos, anunciar reprodutibilidade seria meia-verdade. A âncora passou a ser a meia-noite
-UTC do dia corrente, o que torna o certificado byte-idêntico dentro do mesmo dia UTC. Isso
-altera os bytes dos certificados Ed25519 emitidos anteriormente — as chaves Ed25519 seguem
-idênticas, só a janela de validade muda.
+**Necessary side effect.** Certificate validity used to come from `datetime.now()`, which has
+one-second granularity: two certificates generated more than a second apart already diverged.
+This went unnoticed because Ed25519 generates in microseconds; with RSA taking seconds,
+announcing reproducibility would have been a half-truth. The anchor is now the current day's
+UTC midnight, which makes the certificate byte-identical within the same UTC day. This changes
+the bytes of previously issued Ed25519 certificates — the Ed25519 keys stay identical, only the
+validity window changes.
 
-## Alternativas rejeitadas
+## Rejected alternatives
 
-- **pycryptodome com `randfunc=`.** Funciona e é limpo, mas adiciona uma dependência de
-  criptografia inteira para algo que a `cryptography` já permite montar via
-  `RSAPrivateNumbers`. Manter uma única biblioteca de criptografia vale mais.
-- **`gmpy2` obrigatório.** Aceleraria a geração em cerca de uma ordem de grandeza, mas exige
-  toolchain de compilação e transforma um `pip install` simples num ponto de atrito. Fica
-  como aceleração opcional futura (usar se disponível, cair no CPython puro se não).
-- **Âncora de validade em época fixa** (por exemplo, 2020-01-01 + offset derivado). Daria
-  reprodutibilidade perfeita e permanente, mas geraria certificados já expirados.
+- **pycryptodome with `randfunc=`.** Works and is clean, but adds a whole separate cryptography
+  dependency for something `cryptography` already lets us assemble via `RSAPrivateNumbers`.
+  Keeping a single cryptography library is worth more.
+- **Mandatory `gmpy2`.** Would speed up generation by roughly an order of magnitude, but requires
+  a compilation toolchain and turns a plain `pip install` into a friction point. Left as a
+  possible future optional acceleration (use it if available, fall back to pure CPython if not).
+- **Fixed-epoch validity anchor** (e.g. 2020-01-01 plus a derived offset). Would give perfect,
+  permanent reproducibility, but would generate already-expired certificates.

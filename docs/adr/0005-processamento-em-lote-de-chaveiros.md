@@ -1,75 +1,77 @@
-# ADR-0005 — Processamento em lote de arquivos de chaveiro
+# ADR-0005 — Batch processing of keyring files
 
-**Status:** Proposto
-**Data:** 2026-08-03
+**Status:** Proposed
+**Date:** 2026-08-03
 
-## Contexto
+## Context
 
-O Passweird sabe **exportar** para sete formatos de chaveiro (`EXPORT_FORMATS`, storage.py:12),
-mas não sabe **ler** nenhum deles. Quem já tem um cofre povoado com senhas de padrões antigos
-não tem caminho de migração: teria que reprocessar entrada por entrada à mão.
+Passweird knows how to **export** to seven keyring formats (`EXPORT_FORMATS`, storage.py:12),
+but does not know how to **read** any of them. Anyone with a vault already populated with
+old-pattern passwords has no migration path — they would have to reprocess entries one by one
+by hand.
 
-O caso concreto que motivou isto: um arquivo do KeePassXC com dezenas de senhas em padrões
-antigos, a ser reprocessado para gerar um arquivo novo sob o padrão atual, com o usuário sendo
-consultado senha por senha e usando a URL de cada entrada como sugestão de nome de contexto.
+The concrete case that motivated this: a KeePassXC file with dozens of passwords in old
+patterns, to be reprocessed into a new file under the current pattern, with the user consulted
+password by password and the entry's URL used as a suggested context name.
 
-Duas restrições vieram junto e moldam o desenho:
+Two constraints came along with it and shape the design:
 
-1. **Senha-mestra e segredo temporal não devem ir na linha de comando.** Ficam no histórico do
-   shell e visíveis em `ps`. Em lote isso é pior que no uso avulso, porque um único comando
-   passa a expor o segredo que destranca dezenas de contas.
-2. **A troca é confirmada individualmente.** Migração de cofre é irreversível na prática — o
-   usuário precisa poder pular entradas e interromper no meio sem perder o já feito.
+1. **The master password and temporal secret must not go on the command line.** They land in
+   shell history and are visible via `ps`. In batch mode this is worse than in single-shot use,
+   because one command ends up exposing the secret that unlocks dozens of accounts.
+2. **The change is confirmed individually.** Vault migration is effectively irreversible — the
+   user needs to be able to skip entries and interrupt midway without losing what was already
+   done.
 
-## Decisão
+## Decision
 
-Adicionar leitura de chaveiros como a operação inversa da exportação existente, e um pipeline
-interativo por entrada.
+Add keyring reading as the inverse of the existing export operation, plus a per-entry
+interactive pipeline.
 
-- **`EXPORT_FORMATS` ganha um mapa `fields`** ligando nomes canônicos (`name`, `url`,
-  `username`, `password`) às colunas de cada formato. Uma estrutura só descreve as duas
-  direções, em vez de manter uma tabela separada de importação que poderia divergir da de
-  exportação com o tempo.
-- **Autodetecção pelo cabeçalho.** Os sete cabeçalhos são textualmente distintos
-  (`Title`/`Name`/`title`/`name`, `Username`/`User Name`/`Login`), então casar o cabeçalho lido
-  contra os conhecidos é inequívoco. `--vault-format` permite forçar.
-- **Segredos pedidos uma única vez, no início, via `getpass`.** Inclusive o segredo temporal,
-  que no fluxo avulso é lido com `input()` visível — em lote ele fica na tela por muito tempo.
-  Se vierem por `--master-pass`/`-T`, o aviso existente
-  (`storage.print_command_line_warning`) é disparado, mas a execução prossegue: quem decidiu
-  automatizar já foi avisado.
-- **Arquivo de saída sempre novo.** `--vault-out` é obrigatório e nunca pode ser igual à
-  entrada. Criado com modo `0600`.
-- **Cada confirmação também grava no log** (`build_and_log_line`), para que as entradas
-  migradas fiquem verificáveis pela funcionalidade do ADR-0007.
+- **`EXPORT_FORMATS` gains a `fields` map** linking canonical names (`name`, `url`, `username`,
+  `password`) to each format's columns. A single structure describes both directions, instead of
+  keeping a separate import table that could drift from the export one over time.
+- **Autodetection by header.** The seven headers are textually distinct
+  (`Title`/`Name`/`title`/`name`, `Username`/`User Name`/`Login`), so matching the read header
+  against the known ones is unambiguous. `--vault-format` allows forcing it.
+- **Secrets asked once, up front, via `getpass`.** Including the temporal secret, which in the
+  single-shot flow is read with a visible `input()` — in batch mode it would stay on screen for
+  much longer. If provided via `--master-pass`/`-T`, the existing warning
+  (`storage.print_command_line_warning`) still fires, but execution proceeds: whoever chose to
+  automate has already been warned.
+- **Output file is always new.** `--vault-out` is mandatory and can never equal the input. Created
+  with mode `0600`.
+- **Every confirmation also logs** (`build_and_log_line`), so migrated entries become verifiable
+  through the ADR-0007 feature.
 
-## Consequências
+## Consequences
 
-**Positivas.** Existe caminho de migração para quem já usa um cofre. O usuário mantém controle
-entrada a entrada, podendo pular o que não quer mexer. O formato de saída pode diferir do de
-entrada, então isto também vira uma ferramenta de conversão entre chaveiros.
+**Positive.** A migration path now exists for anyone with an existing vault. The user keeps
+per-entry control, able to skip whatever they do not want to touch. The output format can differ
+from the input, so this also becomes a keyring-conversion tool.
 
-**Custo.** Sete mapas `fields` a manter em sincronia com os `header`. Mitigado por um teste de
-round-trip por formato — escrever e reler tem que devolver o original.
+**Cost.** Seven `fields` maps to keep in sync with `header`. Mitigated by a round-trip test per
+format — writing and reading back must return the original.
 
-**Limitação assumida: o arquivo gerado tem senhas em texto puro.** É inerente ao formato CSV
-que todos esses chaveiros importam; não há como evitar sem deixar de interoperar. O modo `0600`
-e um aviso explícito ao final ("importe e apague") são a mitigação possível. Não é aceitável
-tratar isso como detalhe: é o momento de maior exposição de todo o fluxo do Passweird.
+**Accepted limitation: the generated file has passwords in plain text.** This is inherent to the
+CSV format every one of these keyrings imports; there is no way to avoid it without breaking
+interoperability. Mode `0600` and an explicit closing warning ("import it, then delete it") are
+the available mitigation. This must not be treated as a detail: it is the single point of
+greatest exposure in Passweird's whole flow.
 
-**Limitação assumida: `firefox` não tem coluna de título.** Nome canônico cai para a URL, o que
-é fiel ao formato mas significa que um round-trip Firefox → Firefox perde o título original se
-ele veio de outro chaveiro.
+**Accepted limitation: `firefox` has no title column.** The canonical name falls back to the URL,
+which is faithful to the format but means a Firefox → Firefox round-trip loses the original title
+if it came from another keyring.
 
-## Alternativas rejeitadas
+## Rejected alternatives
 
-- **Ler o `.kdbx` do KeePassXC diretamente.** Exigiria `pykeepass` e implementar a criptografia
-  do cofre, além de manipular o arquivo real do usuário — risco muito maior. O export CSV é o
-  denominador comum de todos os sete chaveiros e mantém o Passweird fora do arquivo original.
-- **Reaproveitar `-f/--file`** (lote de contextos em texto/CSV). Ele resolve outro problema:
-  gerar senhas para uma lista de nomes. Aqui a entrada é um cofre com estrutura própria, e a
-  saída é outro cofre. Sobrecarregar a mesma flag confundiria os dois fluxos.
-- **Modo não-interativo (processar tudo sem perguntar).** Rejeitado por ora: a sugestão de
-  contexto derivada da URL erra em casos comuns (subdomínios, múltiplas contas no mesmo site),
-  e um lote inteiro migrado com contexto errado é indetectável depois — as senhas simplesmente
-  não regeneram mais.
+- **Reading KeePassXC's `.kdbx` directly.** Would require `pykeepass` and implementing the
+  vault's encryption, plus handling the user's actual file — much higher risk. The CSV export is
+  the common denominator across all seven keyrings and keeps Passweird out of the original file.
+- **Reusing `-f/--file`** (batch of contexts in text/CSV). It solves a different problem:
+  generating passwords for a list of names. Here the input is a vault with its own structure, and
+  the output is another vault. Overloading the same flag would confuse the two flows.
+- **Non-interactive mode (process everything without asking).** Rejected for now: the
+  URL-derived context suggestion gets it wrong in common cases (subdomains, multiple accounts on
+  the same site), and a whole batch migrated under the wrong context is undetectable afterward —
+  the passwords simply stop regenerating.

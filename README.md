@@ -1,44 +1,54 @@
 # Passweird
 
-Passweird é um gerador de senhas **determinístico e "stateless"**: em vez de guardar senhas em um cofre, ele recalcula a mesma senha sempre que você fornece os mesmos ingredientes — **senha-mestre + nome do aplicativo/contexto** (e, opcionalmente, um **segredo temporal**). Não existe arquivo de senhas para vazar ou perder: se você lembra da master password e do contexto, você reconstrói a senha em qualquer máquina.
+Passweird is a **deterministic, stateless** password generator: instead of storing passwords
+in a vault, it recomputes the same password every time you give it the same ingredients —
+**master password + application/context name** (and, optionally, a **temporal secret**). There
+is no password file to leak or lose: if you remember the master password and the context, you
+can rebuild the password on any machine.
 
-O mesmo princípio se estende a outras identidades criptográficas: chaves **SSH**, certificados **SSL/TLS**, segredos **TOTP** e pares de chave **PGP** também podem ser regenerados de forma idêntica a partir dos mesmos ingredientes.
+The same principle extends to other cryptographic identities: **SSH** keys, **SSL/TLS**
+certificates, **TOTP** secrets and **PGP** key pairs can also be regenerated identically from
+the same ingredients.
 
-## Arquitetura
+## Architecture
 
-O projeto é dividido em três módulos:
+The project is split into three modules:
 
-- **`crypto.py`** — toda a matemática pura: hashing, derivação HKDF, geração determinística de senhas/chaves, criptografia AES-GCM.
-- **`storage.py`** — persistência, logs, configuração, exportação para gerenciadores de senha, internacionalização (`_()`).
-- **`main.py`** — interface de linha de comando e orquestração.
+- **`crypto.py`** — all the pure math: hashing, HKDF derivation, deterministic password/key
+  generation, AES-GCM encryption.
+- **`storage.py`** — persistence, logs, configuration, export to password managers,
+  internationalization (`_()`).
+- **`main.py`** — command-line interface and orchestration.
 
-## Requisitos
+## Requirements
 
 - Python 3.10+
-- Binário `gpg` (GnuPG) instalado no sistema, se for usar `--pgp`
-- Um autenticador FIDO2 físico (YubiKey ou similar), se for usar `--fido2`/`--fido2-register`
+- The `gpg` (GnuPG) binary installed on the system, if you plan to use `--pgp`
+- A physical FIDO2 authenticator (YubiKey or similar), if you plan to use
+  `--fido2`/`--fido2-register`
 
-## Instalação
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Isso instala `cryptography`, `python-gnupg`, `pyotp` e `fido2`.
+This installs `cryptography`, `python-gnupg`, `pyotp` and `fido2`.
 
-Para rodar os testes, instale também as dependências de desenvolvimento:
+To run the tests, also install the development dependencies:
 
 ```bash
 pip install -r requirements-dev.txt
 ```
 
-## Uso básico
+## Basic usage
 
 ```bash
-python3 main.py <contexto>
+python3 main.py <context>
 ```
 
-Você será solicitado a digitar a senha-mestre (entrada oculta), e a senha determinística para aquele contexto será gerada e exibida:
+You will be prompted for the master password (hidden input), and the deterministic password
+for that context is generated and shown:
 
 ```bash
 $ python3 main.py github
@@ -47,245 +57,262 @@ Context: github
 Generated Password: 6x93w7CpY@UgRXm1U+
 ```
 
-Rodar o mesmo comando de novo, com a mesma senha-mestre, produz **exatamente a mesma senha**.
+Running the same command again, with the same master password, produces **exactly the same
+password**.
 
-### Primeiros passos recomendados
+### Recommended first steps
 
 ```bash
-# 1. Gera um arquivo de configuração padrão comentado em ~/.passweird/passweird.cfg
+# 1. Creates a default, commented configuration file at ~/.passweird/passweird.cfg
 python3 main.py -g
 
-# 2. Registra o hash da sua senha-mestre localmente, para detectar erros de digitação
+# 2. Registers your master password's hash locally, to catch typos
 python3 main.py --register-master
 
-# 3. Salva as flags atuais (comprimento, classes de caracteres, etc.) como padrão
+# 3. Saves the current flags (length, character classes, etc.) as the default
 python3 main.py -L 24 -s --save-settings
 ```
 
-## Referência de flags
+## Flag reference
 
-### Geração de senha padrão
+### Standard password generation
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `contexto` (posicional) | Nome do aplicativo/contexto (modo visível) |
-| `-T, --temporal` | Segredo/salt temporal (ex: `2026/01`, `Q2`). Se omitido, é pedido interativamente (ou lido de `--temporal-secret-file`) |
-| `-L, --length` | Comprimento da senha (padrão 18; mínimo 8, ou 6 se só dígitos) |
-| `-p, --paranoid` | Modo paranoico: oculta a digitação do contexto |
-| `-U, --no-uppercase` / `-l, --no-lowercase` / `-n, --no-numbers` / `-s, --no-specials` | Desativa classes de caracteres |
-| `-v, --invisible-password [cor]` | Imprime a senha em uma cor "invisível" (padrão: preto) |
-| `-o, --output {bitwarden,keepassxc,protonpass,chrome,firefox,seahorse,kaspersky}` | Exporta a entrada para CSV de um gerenciador de senhas |
-| `--force` | Pula o aviso de divergência de flags em relação ao último uso registrado no log |
+| `context` (positional) | Application/context name (visible mode) |
+| `-T, --temporal` | Temporal secret/salt (e.g. `2026/01`, `Q2`). If omitted, it is prompted for interactively (or read from `--temporal-secret-file`) |
+| `-L, --length` | Password length (default 18; minimum 8, or 6 if digits-only) |
+| `-p, --paranoid` | Paranoid mode: hides the context as you type it |
+| `-U, --no-uppercase` / `-l, --no-lowercase` / `-n, --no-numbers` / `-s, --no-specials` | Disable character classes |
+| `-v, --invisible-password [color]` | Prints the password in an "invisible" color (default: black) |
+| `-o, --output {bitwarden,keepassxc,protonpass,chrome,firefox,seahorse,kaspersky}` | Exports the entry to a password manager's CSV format |
+| `--force` | Skips the warning about flags differing from the last logged use |
 
-### Senha-mestre e segredo temporal
+### Master password and temporal secret
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `--master-file ARQUIVO` | Lê a senha-mestre de um arquivo em texto puro (**inseguro**, imprime aviso) |
-| `--master-pass SENHA` | Passa a senha-mestre direto na linha de comando (**inseguro**, imprime aviso) |
-| `--temporal-secret-file ARQUIVO` | Lê o segredo temporal padrão de um arquivo (Enter no prompt repete esse valor) |
-| `--register-master` | Registra o hash da senha-mestre atual como padrão desta máquina (pede confirmação dupla na primeira vez) |
-| `--no-check` | Pula a verificação contra o hash registrado |
+| `--master-file FILE` | Reads the master password from a plaintext file (**insecure**, prints a warning) |
+| `--master-pass PASSWORD` | Passes the master password directly on the command line (**insecure**, prints a warning) |
+| `--temporal-secret-file FILE` | Reads the default temporal secret from a file (Enter at the prompt repeats that value) |
+| `--register-master` | Registers the current master password's hash as this machine's default (asks for double confirmation the first time) |
+| `--no-check` | Skips verification against the registered hash |
 
-### Modo de troca e processamento em lote
+### Change mode and batch processing
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `-c, --change` | Modo de troca: pede master/app antigos e novos, gera os dois, loga com marcador `C` |
-| `-f, --file [ARQUIVO]` | Processa em lote um arquivo texto (`contexto identificadores...` por linha) ou CSV (`app,identificadores`) |
-| `--mass-rekey` | Regera as senhas de **todos** os contextos salvos em `hosts.enc` sob uma nova senha-mestre, exporta um CSV com pares antigo/novo e re-criptografa `hosts.enc` com a nova senha |
-| `--old-key-file` / `--new-key-file` | Keyfiles físicas antiga/nova a usar durante `--mass-rekey` |
+| `-c, --change` | Change mode: asks for old/new master/app, generates both, logs with a `C` marker |
+| `-f, --file [FILE]` | Batch-processes a text file (`context identifiers...` per line) or CSV (`app,identifiers`) |
+| `--mass-rekey` | Regenerates passwords for **every** context saved in `hosts.enc` under a new master password, exports a CSV with old/new pairs, and re-encrypts `hosts.enc` with the new password |
+| `--old-key-file` / `--new-key-file` | Old/new physical keyfiles to use during `--mass-rekey` |
 
-### Segundo fator físico
+### Physical second factor
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `--key-file CAMINHO` | Usa um arquivo (qualquer arquivo, ou uma keyfile gerada pelo Passweird) como segundo fator, misturado ao hash da senha-mestre |
-| `--gen-keyfile CAMINHO` | Gera uma nova keyfile **aleatória**, criptografada em repouso com a senha-mestre atual — um fator "algo que se tem": perder o arquivo sem backup é perder o fator |
-| `--gen-keyfile CAMINHO --recoverable` | Gera uma keyfile **derivada da senha-mestre + uma frase de recuperação** perguntada interativamente — pode ser regenerada de memória se o arquivo físico for perdido |
-| `--fido2-register` | Registra uma nova credencial em uma chave de segurança FIDO2 conectada (exige toque físico) |
-| `--fido2` | Usa a credencial FIDO2 registrada como fator adicional para a geração atual (exige toque físico a cada uso) |
+| `--key-file PATH` | Uses a file (any file, or a keyfile generated by Passweird) as a second factor, blended into the master password hash |
+| `--gen-keyfile PATH` | Generates a new **random** keyfile, encrypted at rest with the current master password — a "something you have" factor: losing the file without a backup means losing the factor |
+| `--gen-keyfile PATH --recoverable` | Generates a keyfile **derived from the master password + a recovery phrase** asked interactively — can be regenerated from memory if the physical file is lost |
+| `--fido2-register` | Registers a new credential on a connected FIDO2 security key (requires a physical touch) |
+| `--fido2` | Uses the registered FIDO2 credential as an additional factor for the current generation (requires a physical touch on every use) |
 
-### Identidades determinísticas adicionais
+### Additional deterministic identities
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `--ssh` | Gera um par de chaves SSH Ed25519 determinístico |
-| `--ssl` | Gera um certificado SSL/TLS autoassinado determinístico (Ed25519) |
-| `--rsa BITS` | Como `--ssl`, mas usando RSA — totalmente determinístico: os primos p e q são derivados do mesmo stream HKDF (mínimo 2048, múltiplo de 16). Custo típico: ~1 s em 2048 bits, ~2 s em 4096 bits |
-| `--totp` | Gera um segredo TOTP determinístico (mostra segredo Base32, URI `otpauth://` e código atual de 6 dígitos) |
-| `--pgp` | Gera um par de chaves PGP/OpenPGP determinístico (exportado em formato armored, pronto para `gpg --import`) |
+| `--ssh` | Generates a deterministic SSH Ed25519 key pair |
+| `--ssl` | Generates a deterministic self-signed SSL/TLS certificate (Ed25519) |
+| `--rsa BITS` | Like `--ssl`, but using RSA — fully deterministic: primes p and q are derived from the same HKDF stream (minimum 2048, multiple of 16). Typical cost: ~1s at 2048 bits, ~2s at 4096 bits |
+| `--totp` | Generates a deterministic TOTP secret (shows the Base32 secret, the `otpauth://` URI and the current 6-digit code) |
+| `--pgp` | Generates a deterministic PGP/OpenPGP key pair (exported in armored format, ready for `gpg --import`) |
 
-> ⚠️ **Use um segredo temporal forte com `--ssl` e `--rsa`.**
-> O certificado publica o nome do contexto no campo CN, em texto claro. Ou seja: escolher um
-> nome de contexto imprevisível **não protege nada** aqui — quem baixar o certificado lê o
-> contexto. Como a chave pública também é publicada, ela funciona como um oráculo de
-> verificação offline: um atacante testa senhas candidatas contra o módulo `n` sem qualquer
-> limite de tentativas.
+> ⚠️ **Use a strong temporal secret with `--ssl` and `--rsa`.**
+> The certificate publishes the context name in the CN field, in plain text. In other words:
+> choosing an unpredictable context name **protects nothing** here — whoever downloads the
+> certificate can just read the context. Because the public key is published too, it acts as an
+> offline verification oracle: an attacker can test candidate master passwords against the
+> modulus `n` with no rate limit at all.
 >
-> Com isso, o segredo temporal (`-T`) é **a única entrada imprevisível que não vaza junto com
-> o artefato**. Ele deve ser tratado como uma segunda senha, não como um rótulo de versão:
-> use algo como uma passphrase de 6+ palavras aleatórias, não `2026/01`. O CLI avisa quando
-> você gera um certificado sem segredo temporal.
+> Given that, the temporal secret (`-T`) is **the only unpredictable input that does not leak
+> with the artifact**. Treat it as a second password, not a version label: use something like a
+> 6+ word random passphrase, not `2026/01`. The CLI warns when you generate a certificate
+> without a temporal secret.
 >
-> O mesmo vale **no mesmo grau** para `--pgp`: o UID da chave é `Passweird <contexto>`, ou seja,
-> o contexto vai publicado ali igualmente. Para `--ssh` o contexto **não** vaza (a chave pública
-> é derivada de `app_hash` e não carrega comentário), então ali um nome de contexto imprevisível
-> soma entropia de verdade.
+> The same applies **to the same degree** to `--pgp`: the key's UID is `Passweird <context>`,
+> so the context is published there too. For `--ssh` the context does **not** leak (the public
+> key is derived from `app_hash` and carries no comment), so there an unpredictable context
+> name genuinely adds entropy.
 
-### Auditoria, logs e lista de hosts
+### Auditing, logs and the host list
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `--audit` | Verifica se um contexto/temporal já foi usado antes, buscando no log local (sem `contexto`/`-T` na linha de comando, pede tudo de forma oculta — não deixa rastro no histórico do shell) |
-| `--view-log` | Descriptografa e exibe todo o histórico de logs |
-| `--plain-log` | Desativa a criptografia AES do log (grava em texto puro) |
-| `-w, --write` | Desativa a gravação de resumos de hash no log |
-| `--no-print-hash` | Não imprime a linha de resumo de hash no terminal |
-| `--encrypt-list ARQUIVO` | Criptografa um arquivo texto com nomes de hosts/sistemas em `~/.passweird/hosts.enc` |
-| `--view-list` | Descriptografa e exibe a lista de hosts/sistemas salva |
+| `--audit` | Checks whether a context/temporal pair has been used before, by searching the local log (without `context`/`-T` on the command line, everything is prompted hidden — leaves no trace in the shell history) |
+| `--view-log` | Decrypts and displays the full log history |
+| `--plain-log` | Disables AES encryption for the log (writes it in plain text) |
+| `-w, --write` | Disables writing hash summaries to the log |
+| `--no-print-hash` | Does not print the hash-summary line to the terminal |
+| `--encrypt-list FILE` | Encrypts a plain text file of host/system names into `~/.passweird/hosts.enc` |
+| `--view-list` | Decrypts and displays the saved host/system list |
 
-### Configuração
+### Configuration
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `-g, --generate` | Cria `~/.passweird/passweird.cfg` comentado com todas as opções, e sai |
-| `--save-settings` | Salva as flags atuais como padrão em `passweird.cfg` |
+| `-g, --generate` | Creates a commented `~/.passweird/passweird.cfg` with all options, then exits |
+| `--save-settings` | Saves the current flags as defaults in `passweird.cfg` |
 
-Rode `python3 main.py --help` para a lista completa e atualizada (a ajuda é totalmente internacionalizada — veja abaixo).
+Run `python3 main.py --help` for the complete, up-to-date list (the help text is fully
+internationalized — see below).
 
-## Internacionalização
+## Internationalization
 
-A interface detecta o idioma do sistema (`locale`) automaticamente. Idiomas suportados hoje: **português, espanhol, francês, alemão e chinês simplificado** (com inglês como padrão de fallback para o que não estiver traduzido). Para testar um idioma específico:
+The interface detects the system language (`locale`) automatically. Languages supported today:
+**Portuguese, Spanish, French, German and Simplified Chinese** (with English as the fallback
+default for anything not translated). To test a specific language:
 
 ```bash
 LANG=fr_FR.UTF-8 python3 main.py --help
 ```
 
-(requer que o locale correspondente esteja instalado no sistema, ex. via `locale-gen`).
+(requires the corresponding locale to be installed on the system, e.g. via `locale-gen`).
 
-## Modelo de segurança, em resumo
+## Security model, in short
 
-- A senha-mestre nunca é gravada em disco — apenas um hash duplo (`modified_hash`) é opcionalmente registrado para checagem local.
-- Logs guardam somente **resumos truncados de hash** (senha, master, app, temporal), nunca os valores em si — e são criptografados com AES-256-GCM por padrão.
-- Keyfiles geradas pelo Passweird (`--gen-keyfile`) são criptografadas em repouso com a senha-mestre atual: quem só tem o arquivo, sem a senha, não tem nada.
-- Trocar a senha-mestre invalida automaticamente keyfiles antigas e o `hosts.enc` antigo — use `--mass-rekey` para migrar tudo de uma vez.
+- The master password is never written to disk — only a double hash (`modified_hash`) is
+  optionally registered for local checking.
+- Logs store only **truncated hash summaries** (password, master, app, temporal), never the
+  values themselves — and are encrypted with AES-256-GCM by default.
+- Keyfiles generated by Passweird (`--gen-keyfile`) are encrypted at rest with the current
+  master password: whoever only has the file, without the password, has nothing.
+- Changing the master password automatically invalidates old keyfiles and the old `hosts.enc`
+  — use `--mass-rekey` to migrate everything at once.
 
-### Material assimétrico publicado exige mais cuidado
+### Published asymmetric material needs more care
 
-Senhas só são testáveis contra o serviço, que impõe limite de tentativas. **Chaves públicas
-são diferentes**: uma vez publicadas (certificado TLS servido por um host, chave SSH em
-`authorized_keys`, chave PGP num keyserver), qualquer um pode testar senhas-mestre candidatas
-offline, sem limite, comparando o resultado com a chave pública conhecida.
+Passwords are only testable against the service, which enforces a rate limit. **Public keys are
+different**: once published (a TLS certificate served by a host, an SSH key in
+`authorized_keys`, a PGP key on a keyserver), anyone can test candidate master passwords
+offline, with no limit, by comparing the result against the known public key.
 
-O custo de derivar a chave **não** protege contra isso na proporção que parece: o atacante não
-precisa refazer os testes de primalidade, basta dividir o módulo por cada candidato da
-sequência. Medido: ~2,4 ms por tentativa por core, contra ~0,8 µs de um palpite de senha comum.
-É um freio de ~3.000×, não de 300.000×.
+The cost of deriving the key does **not** protect against this to the degree it appears to: the
+attacker does not need to redo the primality tests, only divide the modulus by each candidate in
+the sequence. Measured: ~2.4ms per attempt per core, versus ~0.8µs for a regular password guess.
+That is a ~3,000× brake, not 300,000×.
 
-Consequência prática — quando usar `--ssl`, `--rsa`, `--pgp` ou `--ssh`:
+Practical consequence — when using `--ssl`, `--rsa`, `--pgp` or `--ssh`:
 
-1. **Use um segredo temporal forte** (`-T`). Para `--ssl`/`--rsa` ele é a única entrada
-   imprevisível que não é publicada junto com o certificado.
-2. **Senha-mestre e segredo temporal somados devem ter entropia alta.** Duas passphrases de
-   6 palavras aleatórias cada (~77 bits por passphrase) resolvem com folga. Senhas curtas ou
-   memorizáveis "à moda antiga" não resolvem.
-3. **Considere `--key-file` ou `--fido2`.** Uma keyfile aleatória contribui com entropia que
-   não é adivinhável, e não depende de você lembrar de nada.
+1. **Use a strong temporal secret** (`-T`). For `--ssl`/`--rsa` it is the only unpredictable
+   input that is not published with the certificate.
+2. **Master password and temporal secret combined need high entropy.** Two 6-word random
+   passphrases (~77 bits each) comfortably suffice. Short or "old-style" memorable passwords do
+   not.
+3. **Consider `--key-file` or `--fido2`.** A random keyfile contributes entropy that is not
+   guessable, and does not depend on you remembering anything.
 
-### Como escolher um segredo temporal (e por que "parecer forte" engana)
+### How to choose a temporal secret (and why "looking strong" is misleading)
 
-Comprimento e variedade de caracteres **não medem** entropia. O que mede é
-imprevisibilidade — quantos palpites o atacante precisa dar, sabendo como você pensa.
+Length and character variety **do not measure** entropy. What measures it is
+unpredictability — how many guesses an attacker needs, knowing how you think.
 
-| Segredo temporal | Medidor ingênuo diria | Na prática | Tempo para quebrar¹ |
+| Temporal secret | A naive meter would say | In practice | Time to crack¹ |
 |---|---|---|---|
-| `08/2026`, `2026/01`, `Q2` | ~15 bits | **~9 bits** | instantâneo |
-| `[mYpAsswordiSaUgustoF26]` | **~147 bits** | **~40 bits** | ~17 minutos |
-| 4 palavras sorteadas ao acaso | ~50 bits | **~52 bits** | ~42 dias |
-| 6 palavras sorteadas ao acaso | ~75 bits | **~78 bits** | ~7 milhões de anos |
+| `08/2026`, `2026/01`, `Q2` | ~15 bits | **~9 bits** | instant |
+| `[mYpAsswordiSaUgustoF26]` | **~147 bits** | **~40 bits** | ~17 minutes |
+| 4 randomly drawn words | ~50 bits | **~52 bits** | ~42 days |
+| 6 randomly drawn words | ~75 bits | **~78 bits** | ~7 million years |
 
-¹ a 10⁹ palpites/s — ver [ADR-0003](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md).
+¹ at 10⁹ guesses/s — see
+[ADR-0003](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md).
 
-A segunda linha é a armadilha e merece atenção. `[mYpAsswordiSaUgustoF26]` tem 24 caracteres,
-maiúsculas alternadas, dígitos e colchetes; qualquer medidor de força o classificaria como
-excelente. Mas ele é uma **frase previsível com uma transformação previsível**: "my password is
-august of 26", mais um padrão de capitalização e uma cercadura. Ferramentas de quebra reais
-(regras do hashcat, PRINCE, modelos estatísticos) atacam exatamente essa estrutura — um
-dicionário de frases plausíveis cruzado com um conjunto grande de regras chega lá em ~2⁴⁰.
+The second row is the trap, and it deserves attention. `[mYpAsswordiSaUgustoF26]` has 24
+characters, alternating case, digits and brackets; any strength meter would rate it as
+excellent. But it is a **predictable phrase with a predictable transformation**: "my password is
+august of 26", plus a capitalization pattern and a wrapper. Real cracking tools (hashcat rules,
+PRINCE, statistical models) attack exactly this structure — a dictionary of plausible phrases
+crossed with a large rule set reaches it in around 2⁴⁰.
 
-**É muito melhor que `08/2026`** — sai de ~9 para ~40 bits. Mas fica quatro ordens de grandeza
-abaixo do que aparenta, e é justamente esse tipo de segredo que dá falsa confiança.
+**It is much better than `08/2026`** — it goes from ~9 to ~40 bits. But it sits four orders of
+magnitude below what it appears to offer, and it is exactly this kind of secret that produces
+false confidence.
 
-O que funciona é sorteio, não criatividade: **palavras escolhidas ao acaso** (diceware, dados,
-`shuf`). A entropia vira um número que você pode calcular, e ele **continua valendo mesmo que o
-atacante conheça exatamente o método** — que é o teste que "frases espertas" não passam.
+What works is drawing at random, not cleverness: **words chosen randomly** (diceware, dice,
+`shuf`). The entropy becomes a number you can compute, and it **still holds even if the
+attacker knows exactly the method** — which is the test that "clever" phrases fail.
 
 ```bash
-# sorteia um segredo temporal e informa quantos bits ele realmente carrega
-python3 main.py --gen-temporal        # 6 palavras
-python3 main.py --gen-temporal 8      # mais margem
+# draws a temporal secret at random and reports how many bits it actually carries
+python3 main.py --gen-temporal        # 6 words
+python3 main.py --gen-temporal 8      # more margin
 ```
 
-### Por que este README não sugere padrões "criativos"
+### Why this README does not suggest "creative" patterns
 
-É tentador oferecer um repertório de ideias — trocar a data por um nome de álbum, intercalar
-letras e dígitos, inverter a ordem das letras. A intuição é que exemplos variados quebram o
-viés de todo mundo escolher a mesma coisa, como no experimento em que quase todos respondem
-"martelo vermelho".
+It is tempting to offer a repertoire of ideas — swap the date for an album name, interleave
+letters and digits, reverse the letter order. The intuition is that varied examples break the
+bias of everyone choosing the same thing, like in the experiment where almost everyone answers
+"red hammer" when asked for a tool and a color.
 
-A lição do martelo vermelho, porém, é outra: **a escolha humana livre carrega ~4 bits**.
-Sugerir outra coisa não elimina o agrupamento, apenas o desloca. E aqui existe uma assimetria
-que inverte o resultado: **o atacante lê este README**. Toda sugestão publicada vira uma regra
-que ele *enumera*; você é apenas *empurrado* por ela.
+The lesson of the red-hammer result, though, is different: **free human choice carries ~4
+bits**. Suggesting something else does not eliminate the clustering, it only relocates it. And
+there is an asymmetry here that flips the outcome: **the attacker reads this README**. Every
+published suggestion becomes a rule they can *enumerate*; you are merely *nudged* by it.
 
-Medindo os padrões que costumam ser propostos, supondo que o atacante conheça o esquema:
+Measuring the patterns that are commonly proposed, assuming the attacker knows the scheme:
 
-| Padrão | Espaço restante | Tempo |
+| Pattern | Remaining space | Time |
 |---|---|---|
-| Intercalar mês e ano (`a2u0g2u6s`) | 12 × 10 × 8 = **2¹⁰** | instantâneo |
-| `NN-AlbumFamoso-NN` (`08-DarkSideOfTheMoon-26`) | 2¹⁴ × 12 × 10 × 8 = **2²⁴** | instantâneo |
-| Inverter as letras de uma frase | 2²⁰ × 2¹² = **2³²** | instantâneo |
-| 6 palavras sorteadas | **2⁷⁸** | 7 milhões de anos |
+| Interleaving month and year (`a2u0g2u6s`) | 12 × 10 × 8 = **2¹⁰** | instant |
+| `NN-FamousAlbum-NN` (`08-DarkSideOfTheMoon-26`) | 2¹⁴ × 12 × 10 × 8 = **2²⁴** | instant |
+| Reversing the letters of a phrase | 2²⁰ × 2¹² = **2³²** | instant |
+| 6 randomly drawn words | **2⁷⁸** | 7 million years |
 
-Repare que o primeiro é o que *parece* mais engenhoso e é o mais fraco de todos. Inverter
-letras, aliás, é a regra `r` do hashcat — está em todo conjunto de regras há décadas.
+Notice that the first one *looks* the most clever and is the weakest of all. Reversing letters,
+incidentally, is hashcat's `r` rule — it has been in every rule set for decades.
 
-A moral: **o esforço que um esquema exige da sua memória não tem relação nenhuma com o que
-ele custa a quem ataca.** Por isso aqui há um sorteador (`--gen-temporal`) em vez de um
-catálogo de ideias.
+The takeaway: **how much effort a scheme demands from your memory has no relation to what it
+costs an attacker.** That is why there is a random generator here (`--gen-temporal`) instead of
+a catalog of ideas.
 
-Por isso o Passweird **não exibe medidor de força**: um número baseado em charset daria ~147
-bits para o exemplo acima e abençoaria a escolha errada. Ele apenas avisa sobre formatos
-inegavelmente fracos (vazio, só dígitos/pontuação, curto demais) e aponta para esta seção.
-Silêncio significa "não é obviamente fraco" — nunca "é forte".
+Passweird deliberately **does not display a strength meter**: a charset-based score would give
+~147 bits to the example above and bless the wrong choice. It only warns about unarguably weak
+shapes (empty, digits/punctuation only, too short) and points to this section. Silence means
+"not obviously weak" — never "strong".
 
-Ver [`docs/adr/0003`](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md) para a
-análise completa e os números medidos.
+See [`docs/adr/0003`](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md) for the
+full analysis and the measured numbers.
 
-## Rodando os testes
+## Running the tests
 
 ```bash
 pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
 
-A suíte (pytest) cobre:
+The suite (pytest) covers:
 
-- `tests/test_crypto.py` — determinismo de todas as primitivas (HKDF, senha, SSH, SSL, TOTP, PGP, keyfiles, FIDO2 com cliente mockado).
-- `tests/test_regressions.py` — regressões dedicadas para os bugs já corrigidos (bug do `--key-file`/`hashlib`, `--ssl`/`datetime.UTC`).
-- `tests/test_storage.py` — configuração, formatos de exportação, construção/leitura de log, lista de hosts.
-- `tests/test_cli.py` — fluxos completos de CLI (troca, lote, master-file, temporal-file, keyfile, TOTP, PGP, rekey em massa) com entrada simulada.
+- `tests/test_crypto.py` — determinism of every primitive (HKDF, password, SSH, SSL, TOTP, PGP,
+  keyfiles, FIDO2 with a mocked client).
+- `tests/test_regressions.py` — dedicated regressions for bugs already fixed (the
+  `--key-file`/`hashlib` bug, `--ssl`/`datetime.UTC`, mixed-format log records, HKDF domain
+  separation, the PGP creation-time window).
+- `tests/test_storage.py` — configuration, export formats, log build/read, host list,
+  translation consistency.
+- `tests/test_cli.py` — full CLI flows (change, batch, master-file, temporal-file, keyfile,
+  TOTP, PGP, mass rekey) with simulated input.
 
-Os testes nunca tocam o `~/.passweird` real: um `conftest.py` redireciona `HOME` para um diretório temporário a cada teste.
+The tests never touch the real `~/.passweird`: a `conftest.py` redirects `HOME` to a temporary
+directory for every test.
 
-**Limitação conhecida:** os testes de FIDO2 usam um cliente simulado (não há hardware físico disponível no ambiente de desenvolvimento). Se você tiver uma chave de segurança FIDO2, valide manualmente com:
+**Known limitation:** the FIDO2 tests use a simulated client (no physical hardware is available
+in the development environment). If you have a FIDO2 security key, validate manually with:
 
 ```bash
 python3 main.py --fido2-register
-python3 main.py meucontexto --fido2
+python3 main.py mycontext --fido2
 ```
 
-## Licença
+## License
 
 GNU General Public License v3.0.

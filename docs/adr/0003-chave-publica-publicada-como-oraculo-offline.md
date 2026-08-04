@@ -1,137 +1,135 @@
-# ADR-0003 — Chave pública publicada como oráculo offline
+# ADR-0003 — Published public key as an offline oracle
 
-**Status:** Aceito — risco assumido, não mitigado
-**Data:** 2026-08-03
+**Status:** Accepted — risk accepted, not mitigated
+**Date:** 2026-08-03
 
-## Contexto
+## Context
 
-Material assimétrico determinístico tem uma propriedade que uma senha comum não tem: **a
-metade pública é publicada**. Um certificado TLS servido por um host, uma chave SSH em
-`authorized_keys`, uma chave PGP num keyserver — todos ficam acessíveis a qualquer um.
+Deterministic asymmetric material has a property a regular password does not: **the public half
+gets published**. A TLS certificate served by a host, an SSH key in `authorized_keys`, a PGP key
+on a keyserver — all of them become accessible to anyone.
 
-Isso transforma a chave pública num **oráculo de verificação offline**. Contra o RSA
-determinístico de [ADR-0001](0001-geracao-rsa-deterministica.md), o ataque é direto:
+That turns the public key into an **offline verification oracle**. Against the deterministic RSA
+from [ADR-0001](0001-geracao-rsa-deterministica.md), the attack is direct:
 
-1. Chuta uma senha mestra candidata.
-2. Deriva `modified_hash` e daí apenas o **primeiro** primo p (metade do trabalho).
-3. Testa `n mod p == 0`, com `n` lido do certificado público.
+1. Guess a candidate master password.
+2. Derive `modified_hash` and from it only the **first** prime p (half the work).
+3. Test `n mod p == 0`, with `n` read from the public certificate.
 
-Um acerto confirma a senha mestra — e com ela, todas as outras senhas derivadas dela. Não há
-rate limiting possível: o atacante tem o `n` e trabalha offline.
+A hit confirms the master password — and with it, every other password derived from it. No rate
+limiting is possible: the attacker has `n` and works offline.
 
-O KDF atual não sustenta essa exposição. `modified_hash()` (`crypto.py`) é literalmente:
+The current KDF does not sustain this exposure. `modified_hash()` (`crypto.py`) is literally:
 
 ```python
 first_hash = hashlib.sha256(value.encode()).hexdigest()
 derived = hashlib.sha256(first_hash[:-1].encode()).hexdigest()
 ```
 
-Dois SHA-256, sem salt, sem fator de trabalho. Agrava: `storage.save_master_hash()` grava
-esse valor em claro em `~/.passweird/master.hash`, o que dá um segundo oráculo offline a
-quem tiver leitura no disco, custando 2 SHA-256 por tentativa.
+Two rounds of SHA-256, no salt, no work factor. It gets worse: `storage.save_master_hash()`
+writes this value in plain text to `~/.passweird/master.hash`, which gives a second offline
+oracle to anyone with read access to the disk, costing 2 SHA-256 per attempt.
 
-## Decisão
+## Decision
 
-**Aceitar o risco agora** e implementar o RSA determinístico sem tocar no KDF.
+**Accept the risk now** and ship deterministic RSA without touching the KDF.
 
-Motivo: trocar `modified_hash` por Argon2id é uma mudança que invalida **toda** senha já
-gerada pelo Passweird e exige versionamento e um caminho de migração. Misturar isso com a
-feature de RSA acoplaria duas mudanças de risco muito diferente — uma aditiva e testável em
-isolamento, outra que quebra todos os usuários existentes.
+Rationale: swapping `modified_hash` for Argon2id is a change that invalidates **every** password
+Passweird has ever generated, and requires versioning and a migration path. Bundling that with
+the RSA feature would couple two changes of very different risk — one additive and testable in
+isolation, the other breaking every existing user.
 
-## Mitigação parcial (acidental) — e por que ela é menor do que parece
+## Partial (accidental) mitigation — and why it is smaller than it looks
 
-É tentador supor que o custo de gerar a chave (~230 ms em 2048 bits) vira proof-of-work e
-encarece cada tentativa do atacante na mesma proporção. **Não vira.** O atacante tem um
-atalho: ele não precisa descobrir *qual* candidato da sequência é primo. Basta percorrer os
-candidatos e testar `n mod candidato == 0` em cada um. Se o candidato for o nosso p, ele
-divide n; se for composto, não divide. Isso elimina o crivo de pequenos primos e todas as
-rodadas de Miller-Rabin — justamente o que domina o custo honesto.
+It is tempting to assume the cost of generating the key (~230ms at 2048 bits) acts as
+proof-of-work and raises the attacker's cost per attempt in the same proportion. **It does not.**
+The attacker has a shortcut: they do not need to discover *which* candidate in the sequence is
+prime. They just walk the candidates and test `n mod candidate == 0` on each one. If the
+candidate is our p, it divides n; if it is composite, it does not. This skips the small-prime
+sieve and every round of Miller-Rabin — exactly what dominates the honest cost.
 
-Medido nesta base de código (CPython puro, um core, K=400 candidatos por tentativa):
+Measured on this codebase (pure CPython, one core, K=400 candidates per attempt):
 
-| Oráculo | Custo por palpite | Palpites/s/core |
+| Oracle | Cost per guess | Guesses/s/core |
 |---|---|---|
-| `~/.passweird/master.hash` (2× SHA-256) | 0,76 µs | ~1.324.000 |
-| Chave pública RSA publicada | 2,36 ms | ~424 |
-| *(geração honesta, para comparação)* | 229 ms | — |
+| `~/.passweird/master.hash` (2× SHA-256) | 0.76µs | ~1,324,000 |
+| Published RSA public key | 2.36ms | ~424 |
+| *(honest generation, for comparison)* | 229ms | — |
 
-Ou seja: o atacante paga cerca de **1% do custo da geração honesta**, e o freio efetivo é de
-~3.000× sobre um palpite de senha comum — não os ~300.000× que a diferença de tempo de
-geração sugeriria. Num equipamento de 100 cores são ~42 k palpites/s; reimplementado em C ou
-GPU, muito mais. Uma senha de ~40 bits de entropia é alcançável; uma passphrase diceware de
-6+ palavras não é.
+In other words: the attacker pays about **1% of the honest generation cost**, and the effective
+brake is ~3,000× over a regular password guess — not the ~300,000× the generation-time
+difference would suggest. On a 100-core rig that is ~42k guesses/s; reimplemented in C or on a
+GPU, much more. A ~40-bit-entropy password is reachable; a 6+ word diceware passphrase is not.
 
-A conclusão é que isso **não é uma defesa projetada** e não deve ser contabilizada como tal.
+The conclusion is that this is **not a designed defense** and should not be counted as one.
 
-## Pré-computação: o que é e o que não é "rainbow table"
+## Precomputation: what is and is not a "rainbow table"
 
-Vale distinguir, porque os dois oráculos têm formatos de ataque diferentes:
+Worth distinguishing, because the two oracles have different attack shapes:
 
-- **`master.hash` é o caso clássico.** `modified_hash` não tem salt e é idêntica para todo
-  usuário do Passweird, então uma única tabela pré-computada inverte o arquivo de qualquer
-  um. É exatamente o cenário para o qual rainbow tables foram inventadas.
-- **A chave pública não é**, no sentido clássico: o alvo `n` é único por (senha mestra,
-  contexto), e nenhuma tabela cobre isso sem enumerar também os contextos.
+- **`master.hash` is the classic case.** `modified_hash` has no salt and is identical for every
+  Passweird user, so a single precomputed table inverts anyone's file. It is exactly the scenario
+  rainbow tables were invented for.
+- **The public key is not**, in the classic sense: the target `n` is unique per
+  (master password, context), and no table covers that without also enumerating contexts.
 
-Mas há duas brechas de pré-computação reais mesmo assim:
+But there are two real precomputation gaps even so:
 
-1. O pipeline é `senha → modified_hash → HKDF(contexto) → p,q → n`, e o **primeiro estágio
-   não depende do contexto**. Uma tabela de `master_hash` para um dicionário grande é
-   construída uma vez e reusada contra todos os alvos Passweird que existirem.
-2. Contextos têm entropia baixa e são adivinháveis (`gmail.com`, `github.com`). Para um
-   contexto popular, dá para pré-computar `senha → n` e casar contra qualquer usuário
-   daquele serviço.
+1. The pipeline is `password → modified_hash → HKDF(context) → p,q → n`, and the **first stage
+   does not depend on the context**. A `master_hash` table for a large dictionary is built once
+   and reused against every Passweird target that exists.
+2. Contexts have low entropy and are guessable (`gmail.com`, `github.com`). For a popular
+   context, one can precompute `password → n` and match it against any user of that service.
 
-Ambas morrem com um salt por usuário no KDF — que é precisamente o que a migração para
-Argon2id deve trazer.
+Both die with a per-user salt in the KDF — which is precisely what migrating to Argon2id should
+bring.
 
-## O contexto não é secreto no caminho SSL
+## The context is not secret on the SSL path
 
-Um agravante específico de `--ssl`/`--rsa`: o certificado **imprime o contexto de derivação no
-CN**, em texto claro. Escolher um nome de contexto imprevisível — estratégia que funciona para
-`--ssh`, cuja chave pública não carrega o contexto — aqui não vale nada, porque quem baixa o
-certificado lê o contexto junto.
+An aggravating factor specific to `--ssl`/`--rsa`: the certificate **prints the derivation
+context in the CN**, in plain text. Choosing an unpredictable context name — a strategy that
+works for `--ssh`, whose public key does not carry the context — is worthless here, because
+whoever downloads the certificate reads the context along with it.
 
-Por isso o `temporal_salt` foi plugado no caminho SSL/RSA (antes ele era calculado em
-`main.py` e descartado). Ele é **a única entrada imprevisível que não é publicada com o
-artefato**, e deve ser tratado como uma segunda senha, não como rótulo de versão: `2026/01`
-não adiciona entropia significativa; uma passphrase de 6+ palavras aleatórias, sim.
+This is why `temporal_salt` was wired into the SSL/RSA path (it used to be computed in
+`main.py` and discarded). It is **the only unpredictable input that is not published with the
+artifact**, and should be treated as a second password, not a version label: `2026/01` adds no
+meaningful entropy; a 6+ word random passphrase does.
 
-Consequência para a documentação: o README instrui explicitamente sobre isso e o CLI emite um
-aviso quando um certificado é gerado sem segredo temporal.
+Documentation consequence: the README explicitly instructs on this, and the CLI emits a warning
+when a certificate is generated without a temporal secret.
 
-## Quanta entropia é preciso
+## How much entropy is needed
 
-O ataque custa ~2,4 ms/palpite/core nesta implementação em Python. Assumindo um atacante que
-reimplemente em C, ganhe 100× e disponha de 10⁴ cores, chega-se à ordem de 10⁹ palpites/s; um
-adversário estatal com 100× mais recursos chegaria a 10¹¹.
+The attack costs ~2.4ms/guess/core in this Python implementation. Assuming an attacker who
+reimplements it in C, gains 100× and has 10⁴ cores, that reaches the order of 10⁹ guesses/s; a
+state-level adversary with 100× more resources would reach 10¹¹.
 
-| Entropia combinada (senha-mestre + segredo temporal) | a 10⁹ palpites/s | a 10¹¹ palpites/s |
+| Combined entropy (master password + temporal secret) | at 10⁹ guesses/s | at 10¹¹ guesses/s |
 |---|---|---|
-| 40 bits | 18 minutos | segundos |
-| 50 bits | 13 dias | 3 horas |
-| 60 bits | 37 anos | 133 dias |
-| 70 bits | 3,7×10⁴ anos | 374 anos |
-| 80 bits | 3,8×10⁷ anos | 3,8×10⁵ anos |
-| 100 bits | inviável | inviável |
+| 40 bits | 18 minutes | seconds |
+| 50 bits | 13 days | 3 hours |
+| 60 bits | 37 years | 133 days |
+| 70 bits | 3.7×10⁴ years | 374 years |
+| 80 bits | 3.8×10⁷ years | 3.8×10⁵ years |
+| 100 bits | infeasible | infeasible |
 
-Duas passphrases diceware de 6 palavras somam ~155 bits e ficam confortavelmente fora de
-alcance. Uma senha-mestre "forte" no sentido comum (12 caracteres mistos, ~60–70 bits) resiste
-a um atacante oportunista, mas não com folga contra um adversário dedicado — e não resiste de
-jeito nenhum se a entropia real for menor do que a contagem ingênua sugere, o que é o caso
-típico de senhas escolhidas por humanos. É essa a razão de o README recomendar segredo temporal
-forte, keyfile ou FIDO2 sempre que material assimétrico for publicado.
+Two 6-word diceware passphrases add up to ~155 bits and sit comfortably out of reach. A "strong"
+master password in the common sense (12 mixed characters, ~60–70 bits) resists an opportunistic
+attacker, but not comfortably against a dedicated adversary — and does not resist at all if the
+real entropy is lower than the naive count suggests, which is the typical case for
+human-chosen passwords. That is why the README recommends a strong temporal secret, a keyfile,
+or FIDO2 whenever asymmetric material is published.
 
-**Nota:** uma versão anterior deste ADR trazia "~semanas" para 60 bits e "~10⁴ anos" para 80
-bits. Ambos estavam errados por erro aritmético — subestimavam a resistência em cerca de três e
-quatro ordens de grandeza, respectivamente. Os números acima foram recalculados.
+**Note:** an earlier version of this ADR gave "~weeks" for 60 bits and "~10⁴ years" for 80 bits.
+Both were wrong due to an arithmetic error — they understated resistance by roughly three and
+four orders of magnitude, respectively. The numbers above have been recalculated.
 
-## Consequências
+## Consequences
 
-- Quem usa `--rsa`, `--ssl`, `--ssh` ou `--pgp` com uma senha mestra fraca está
-  materialmente menos protegido do que quem só gera senhas, porque publica o oráculo. Isso
-  deve ser dito na documentação em linguagem clara, não escondido.
-- Fica registrado como item de roadmap separado: substituir `modified_hash` por Argon2id com
-  salt e versionamento de algoritmo, e parar de gravar o hash mestre em claro. Um ADR futuro
-  supersede este quando isso for feito.
+- Anyone using `--rsa`, `--ssl`, `--ssh` or `--pgp` with a weak master password is materially
+  less protected than someone who only generates passwords, because the oracle gets published.
+  This must be stated in the documentation in plain language, not hidden.
+- Recorded as a separate roadmap item: replace `modified_hash` with Argon2id, with a salt and
+  algorithm versioning, and stop writing the master hash in plain text. A future ADR supersedes
+  this one when that happens.

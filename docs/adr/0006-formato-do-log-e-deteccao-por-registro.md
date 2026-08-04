@@ -1,65 +1,65 @@
-# ADR-0006 — Formato do log e detecção por registro
+# ADR-0006 — Log format and per-record detection
 
-**Status:** Aceito (implementado)
-**Data:** 2026-08-03
+**Status:** Accepted (implemented)
+**Date:** 2026-08-03
 
-## Contexto
+## Context
 
-O log local (`~/.passweird/passweird.log`) é gravado em dois formatos, escolhidos por execução:
+The local log (`~/.passweird/passweird.log`) is written in two formats, chosen per run:
 
-- **cifrado** (padrão): blocos AES-256-GCM, cada um precedido de um prefixo de comprimento de
-  4 bytes big-endian;
-- **texto puro** (`--plain-log`): uma linha por registro, sempre começando com um `date_str` de
-  14 dígitos.
+- **encrypted** (default): AES-256-GCM blocks, each preceded by a 4-byte big-endian length
+  prefix;
+- **plaintext** (`--plain-log`): one line per record, always starting with a 14-digit
+  `date_str`.
 
-Como a escolha é **por execução** e o arquivo é **append-only**, um mesmo arquivo pode conter
-os dois formatos intercalados em qualquer ordem. Basta usar `--plain-log` uma vez e voltar ao
-padrão — não é um caso exótico.
+Since the choice is made **per run** and the file is **append-only**, a single file can hold
+both formats interleaved in any order. Just using `--plain-log` once and then going back to the
+default is enough — this is not an exotic case.
 
-`storage.read_logs_from_file` (storage.py:725) escolhe o formato inspecionando **os 14
-primeiros bytes do arquivo** e depois trata o arquivo inteiro como sendo daquele tipo. O
-docstring da função argumenta corretamente por que o discriminador é sólido (um prefixo de
-comprimento nunca é composto de dígitos ASCII) — mas aplica esse discriminador uma vez só.
+`storage.read_logs_from_file` (storage.py:725) picked the format by inspecting **the first 14
+bytes of the file** and then treated the whole file as being of that type. The function's
+docstring correctly argued why the discriminator itself is sound (a length prefix is never made
+of ASCII digits) — but applied that discriminator only once.
 
-Comportamento verificado em log misto:
+Behavior verified on a mixed log:
 
-| Ordem de gravação | Sintoma |
+| Write order | Symptom |
 |---|---|
-| texto puro, depois cifrado | `UnicodeDecodeError` sobe até o topo; o log inteiro fica ilegível |
-| cifrado, depois texto puro | **perda silenciosa**: dois registros gravados, um exibido |
+| plaintext, then encrypted | `UnicodeDecodeError` propagates to the top; the whole log becomes unreadable |
+| encrypted, then plaintext | **silent loss**: two records written, one returned |
 
-A segunda é a mais grave: não há erro nenhum, apenas registros que somem. Isso atinge
-`--view-log`, `--audit` e qualquer coisa construída sobre o log, porque todas passam por essa
-função.
+The second is the more serious one: no error at all, records just disappear. This affects
+`--view-log`, `--audit` and anything else built on the log, since they all go through this
+function.
 
-## Decisão
+## Decision
 
-Decidir o formato **por registro**, não por arquivo. O laço de leitura passa a olhar, a cada
-posição:
+Decide the format **per record**, not per file. The read loop now looks, at every position:
 
-- próximos 14 bytes são dígitos ASCII → registro em texto puro, consumir até `\n`;
-- caso contrário → bloco cifrado, consumir prefixo de 4 bytes + payload.
+- next 14 bytes are ASCII digits → plaintext record, consume up to `\n`;
+- otherwise → encrypted block, consume a 4-byte prefix + payload.
 
-O discriminador continua sendo o mesmo já documentado e continua correto registro a registro: o
-prefixo de comprimento de um bloco cifrado começa em `\x00\x00\x00` para qualquer payload de
-tamanho realista, e byte nulo não é dígito ASCII. A mudança é onde ele é aplicado, não qual é.
+The discriminator remains exactly the one already documented, and it remains correct
+record-by-record: an encrypted block's length prefix starts with `\x00\x00\x00` for any
+realistic payload size, and a null byte is not an ASCII digit. What changed is where it is
+applied, not what it is.
 
-Adicionalmente, um arquivo truncado no meio de um bloco (queda de energia durante a escrita)
-deve devolver os registros íntegros lidos até ali, sem exceção.
+Additionally, a file truncated mid-block (power loss during a write) must return every intact
+record read up to that point, without raising.
 
-## Consequências
+## Consequences
 
-- `--view-log`, `--audit` e a verificação do ADR-0007 passam a enxergar o log inteiro
-  independentemente da mistura de formatos.
-- Nenhuma mudança de formato de gravação: logs existentes continuam legíveis, e a correção é
-  puramente de leitura.
-- O laço fica um pouco mais longo, mas some a decisão global implícita que era a origem do bug.
+- `--view-log`, `--audit` and the ADR-0007 verification now see the whole log regardless of
+  format mixing.
+- No change to the write format: existing logs remain readable, and the fix is purely on the
+  read side.
+- The loop got a bit longer, but the implicit file-wide decision that caused the bug is gone.
 
-## Nota sobre o formato em si
+## Note on the format itself
 
-O formato "append-only com dois codificações intercaláveis e discriminação heurística" é frágil
-por natureza — funciona aqui porque o discriminador é bem escolhido, não porque o desenho seja
-robusto. Um cabeçalho de arquivo com versão, ou um byte de tipo por registro, seria mais
-defensável. Não é feito agora porque exigiria migrar logs existentes para ganhar pouco: com a
-detecção por registro, o caso que quebrava passa a funcionar. Fica registrado como o desenho
-preferível se o formato do log for revisto por outro motivo.
+The "append-only with two interleavable encodings and heuristic discrimination" format is
+inherently fragile — it works here because the discriminator happens to be well chosen, not
+because the design is robust. A versioned file header, or a per-record type byte, would be more
+defensible. Not done now because it would require migrating existing logs for little gain: with
+per-record detection, the case that used to break now works. Recorded here as the preferable
+design if the log format is ever revisited for another reason.

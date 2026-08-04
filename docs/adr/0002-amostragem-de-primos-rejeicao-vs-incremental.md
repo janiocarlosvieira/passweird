@@ -1,60 +1,59 @@
-# ADR-0002 — Amostragem de primos: rejeição, não busca incremental
+# ADR-0002 — Prime sampling: rejection, not incremental search
 
-**Status:** Aceito
-**Data:** 2026-08-03
+**Status:** Accepted
+**Date:** 2026-08-03
 
-## Contexto
+## Context
 
-Definido em [ADR-0001](0001-geracao-rsa-deterministica.md) que p e q seriam derivados do
-stream HKDF, resta escolher **como** transformar um candidato qualquer num primo. Há duas
-famílias:
+With [ADR-0001](0001-geracao-rsa-deterministica.md) settling that p and q would be derived from
+the HKDF stream, what remains is choosing **how** to turn an arbitrary candidate into a prime.
+There are two families:
 
-1. **Busca incremental (*next-prime*).** Gera-se um candidato e anda-se para cima
-   (`p += 2`) fazendo testes de primalidade até encontrar o primeiro primo acima dele.
-2. **Rejeição.** Cada candidato reprovado é descartado inteiro e um candidato novo e
-   independente é derivado, incrementando um contador que entra no `info` do HKDF.
+1. **Incremental search (*next-prime*).** Generate one candidate and walk upward (`p += 2`),
+   running primality tests until the first prime above it is found.
+2. **Rejection.** Every rejected candidate is discarded entirely and a fresh, independent
+   candidate is derived by incrementing a counter that feeds into the HKDF `info`.
 
-A busca incremental é a primeira ideia natural, e é intuitivamente mais barata: só um
-candidato precisa ser derivado do KDF.
+Incremental search is the first natural idea, and it is intuitively cheaper: only one candidate
+needs to be derived from the KDF.
 
-## Decisão
+## Decision
 
-Usar **rejeição**.
+Use **rejection**.
 
-## Justificativa
+## Rationale
 
-A busca incremental escolhe cada primo com probabilidade **proporcional ao gap que o
-precede**. Primos que vêm logo depois de um gap grande são super-amostrados; primos gêmeos
-são sub-amostrados. Perto de 2^1024 o gap médio é ~710, mas gaps de ordem `(ln x)²` ocorrem,
-o que dá uma não-uniformidade de até ~3 ordens de grandeza. O FIPS 186-5 §B.3.3 proíbe busca
-incremental exatamente por isso e exige um candidato novo a cada rejeição.
+Incremental search picks each prime with probability **proportional to the gap preceding it**.
+Primes that immediately follow a large gap are over-sampled; twin primes are under-sampled. Near
+2^1024 the average gap is ~710, but gaps of order `(ln x)²` occur, producing non-uniformity of
+up to ~3 orders of magnitude. FIPS 186-5 §B.3.3 forbids incremental search for exactly this
+reason and requires a fresh candidate on every rejection.
 
-Na prática esse viés não é uma quebra do RSA, e num esquema determinístico importa ainda
-menos: a entropia real da chave vem da senha mestra, não do sorteio de p. O argumento
-decisivo foi outro — **medimos as duas e o custo é equivalente**:
+In practice this bias is not an RSA break, and in a deterministic scheme it matters even less:
+the key's real entropy comes from the master password, not from the draw of p. The deciding
+argument was different — **both were measured, and the cost is equivalent**:
 
-| | primo 1024 bits | primo 2048 bits |
+| | 1024-bit prime | 2048-bit prime |
 |---|---|---|
-| rejeição | ~0,07 s | ~1,5 s |
-| busca incremental | ~0,11 s | ~0,5 s |
+| rejection | ~0.07s | ~1.5s |
+| incremental search | ~0.11s | ~0.5s |
 
-A variância entre sementes domina a diferença entre os dois métodos. Como não há trade-off
-de desempenho a pagar, escolhe-se o método que é padrão-compatível e mais simples de
-argumentar.
+The variance between seeds dominates the difference between the two methods. Since there is no
+performance trade-off to pay, the method chosen is the one that is standard-compliant and
+simpler to justify.
 
-## Consequências
+## Consequences
 
-- `_derive_prime` carrega um contador que entra no `info` do HKDF; é ele que produz
-  candidatos independentes. O contador **não** é exposto: a função é uma pura função de
+- `_derive_prime` carries a counter that feeds into the HKDF `info`; that is what produces
+  independent candidates. The counter is **not** exposed: the function is a pure function of
   (prk, label, bits).
-- As bases do Miller-Rabin são derivadas de `SHA-512(n)`, nunca de `secrets`/`random` — usar
-  uma fonte aleatória aqui destruiria silenciosamente a reprodutibilidade. Derivá-las do
-  próprio candidato (em vez de fixá-las publicamente) também impede que alguém triture
-  contextos até achar um pseudoprimo forte que passe um conjunto de bases conhecido de
-  antemão.
-- São 24 rodadas (12 bases fixas + 12 derivadas), o que põe a probabilidade de falso positivo
-  em torno de 2⁻⁴⁸. É mais do que o FIPS exige; o custo extra recai só sobre os dois primos
-  confirmados, já que praticamente todo candidato composto morre na base 2.
-- Um crivo de Eratóstenes até 65536, computado uma vez no import, elimina ~84% dos candidatos
-  ímpares por divisão trivial antes de qualquer exponenciação modular. É o que mantém a
-  geração na casa do segundo.
+- The Miller-Rabin bases are derived from `SHA-512(n)`, never from `secrets`/`random` — using a
+  random source here would silently destroy reproducibility. Deriving them from the candidate
+  itself (rather than fixing them publicly) also prevents anyone from grinding contexts until
+  they hit a strong pseudoprime that passes a base set known in advance.
+- There are 24 rounds (12 fixed + 12 derived bases), putting the false-positive probability
+  around 2⁻⁴⁸. That is more than FIPS requires; the extra cost only falls on the two confirmed
+  primes, since almost every composite candidate dies at base 2.
+- A sieve of Eratosthenes up to 65536, computed once at import, eliminates ~84% of odd candidates
+  by trial division before any modular exponentiation. That is what keeps generation in the
+  sub-second range.

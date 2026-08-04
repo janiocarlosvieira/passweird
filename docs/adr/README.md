@@ -1,18 +1,18 @@
 # Architecture Decision Records
 
-Registro das decisões de arquitetura do Passweird. Cada ADR descreve um contexto, a
-decisão tomada e suas consequências. ADRs não são editados depois de aceitos — uma
-decisão que muda é substituída por um novo ADR que a supersede.
+Record of Passweird's architecture decisions. Each ADR describes a context, the decision made
+and its consequences. ADRs are not edited after being accepted — a decision that changes is
+superseded by a new ADR.
 
-| ADR | Título | Status |
+| ADR | Title | Status |
 |---|---|---|
-| [0001](0001-geracao-rsa-deterministica.md) | Geração determinística de chaves RSA | Aceito |
-| [0002](0002-amostragem-de-primos-rejeicao-vs-incremental.md) | Amostragem de primos: rejeição, não busca incremental | Aceito |
-| [0003](0003-chave-publica-publicada-como-oraculo-offline.md) | Chave pública publicada como oráculo offline | Aceito (risco assumido) |
-| [0004](0004-separacao-de-dominio-no-info-do-hkdf.md) | Separação de domínio no `info` do HKDF | Aceito |
-| [0005](0005-processamento-em-lote-de-chaveiros.md) | Processamento em lote de arquivos de chaveiro | Proposto |
-| [0006](0006-formato-do-log-e-deteccao-por-registro.md) | Formato do log e detecção por registro | Aceito |
-| [0007](0007-verificacao-de-senha-contra-o-log.md) | Verificação de senha contra o log | Proposto |
+| [0001](0001-geracao-rsa-deterministica.md) | Deterministic RSA key generation | Accepted |
+| [0002](0002-amostragem-de-primos-rejeicao-vs-incremental.md) | Prime sampling: rejection, not incremental search | Accepted |
+| [0003](0003-chave-publica-publicada-como-oraculo-offline.md) | Published public key as an offline oracle | Accepted (risk accepted) |
+| [0004](0004-separacao-de-dominio-no-info-do-hkdf.md) | Domain separation in the HKDF `info` string | Accepted |
+| [0005](0005-processamento-em-lote-de-chaveiros.md) | Batch processing of keyring files | Proposed |
+| [0006](0006-formato-do-log-e-deteccao-por-registro.md) | Log format and per-record detection | Accepted |
+| [0007](0007-verificacao-de-senha-contra-o-log.md) | Password verification against the log | Proposed |
 
-O plano de execução correspondente aos ADRs propostos está em
+The execution plan for the proposed ADRs is in
 [`../PLANO-DE-ACAO.md`](../PLANO-DE-ACAO.md).
