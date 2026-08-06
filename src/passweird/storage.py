@@ -10,7 +10,7 @@ import math
 import re
 import secrets
 import string
-import crypto
+from . import crypto
 from datetime import datetime
 
 EXPORT_FORMATS = {

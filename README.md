@@ -12,46 +12,61 @@ the same ingredients.
 
 ## Architecture
 
-The project is split into three modules:
+The `passweird` package is split into three modules:
 
 - **`crypto.py`** — all the pure math: hashing, HKDF derivation, deterministic password/key
   generation, AES-GCM encryption.
 - **`storage.py`** — persistence, logs, configuration, export to password managers,
   internationalization (`_()`).
-- **`main.py`** — command-line interface and orchestration.
+- **`main.py`** — command-line interface and orchestration, exposed as the `passweird` command.
 
 ## Requirements
 
 - Python 3.10+
-- The `gpg` (GnuPG) binary installed on the system, if you plan to use `--pgp`
+- The `gpg` (GnuPG) binary installed on the system, if you plan to use `--pgp`. On Windows this
+  means installing [Gpg4win](https://gpg4win.org/) separately — `python-gnupg` only talks to a
+  `gpg` binary, it doesn't ship one.
 - A physical FIDO2 authenticator (YubiKey or similar), if you plan to use
   `--fido2`/`--fido2-register`
 
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pipx install passweird            # recommended: isolated environment, works the same on Linux and Windows
+# or: pip install passweird
 ```
 
-This installs `cryptography`, `python-gnupg`, `pyotp` and `fido2`.
-
-To run the tests, also install the development dependencies:
+The base install only pulls in `cryptography`, the one dependency the tool always needs. TOTP,
+PGP and FIDO2 support are optional extras, since most sessions use none of them:
 
 ```bash
-pip install -r requirements-dev.txt
+pipx install "passweird[totp]"    # --totp
+pipx install "passweird[pgp]"     # --pgp (still requires the gpg binary, see Requirements)
+pipx install "passweird[fido2]"   # --fido2 / --fido2-register
+pipx install "passweird[all]"     # all three
+```
+
+To work on Passweird itself (running the test suite, etc.), clone the repository and install it
+editable with the `dev` extra:
+
+```bash
+git clone https://github.com/janiocarlosvieira/passweird.git
+cd passweird
+pip install -e ".[dev]"
+pytest tests/ -q
 ```
 
 ## Basic usage
 
 ```bash
-python3 main.py <context>
+passweird <context>
 ```
 
 You will be prompted for the master password (hidden input), and the deterministic password
 for that context is generated and shown:
 
 ```bash
-$ python3 main.py github
+$ passweird github
 Master password:
 Context: github
 Generated Password: 6x93w7CpY@UgRXm1U+
@@ -64,13 +79,13 @@ password**.
 
 ```bash
 # 1. Creates a default, commented configuration file at ~/.passweird/passweird.cfg
-python3 main.py -g
+passweird -g
 
 # 2. Registers your master password's hash locally, to catch typos
-python3 main.py --register-master
+passweird --register-master
 
 # 3. Saves the current flags (length, character classes, etc.) as the default
-python3 main.py -L 24 -s --save-settings
+passweird -L 24 -s --save-settings
 ```
 
 ## Flag reference
@@ -163,7 +178,7 @@ python3 main.py -L 24 -s --save-settings
 | `-g, --generate` | Creates a commented `~/.passweird/passweird.cfg` with all options, then exits |
 | `--save-settings` | Saves the current flags as defaults in `passweird.cfg` |
 
-Run `python3 main.py --help` for the complete, up-to-date list (the help text is fully
+Run `passweird --help` for the complete, up-to-date list (the help text is fully
 internationalized — see below).
 
 ## Internationalization
@@ -173,7 +188,7 @@ The interface detects the system language (`locale`) automatically. Languages su
 default for anything not translated). To test a specific language:
 
 ```bash
-LANG=fr_FR.UTF-8 python3 main.py --help
+LANG=fr_FR.UTF-8 passweird --help
 ```
 
 (requires the corresponding locale to be installed on the system, e.g. via `locale-gen`).
@@ -243,8 +258,8 @@ attacker knows exactly the method** — which is the test that "clever" phrases 
 
 ```bash
 # draws a temporal secret at random and reports how many bits it actually carries
-python3 main.py --gen-temporal        # 6 words
-python3 main.py --gen-temporal 8      # more margin
+passweird --gen-temporal        # 6 words
+passweird --gen-temporal 8      # more margin
 ```
 
 ### Why this README does not suggest "creative" patterns
@@ -286,7 +301,7 @@ full analysis and the measured numbers.
 ## Running the tests
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
@@ -309,8 +324,8 @@ directory for every test.
 in the development environment). If you have a FIDO2 security key, validate manually with:
 
 ```bash
-python3 main.py --fido2-register
-python3 main.py mycontext --fido2
+passweird --fido2-register
+passweird mycontext --fido2
 ```
 
 ## License

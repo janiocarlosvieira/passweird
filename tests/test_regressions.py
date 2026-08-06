@@ -5,12 +5,11 @@ audit: (B1) main.py used hashlib without importing it on the --key-file path,
 """
 import os
 import sys
+from passweird import crypto, main, storage
+
 
 from cryptography import x509
 
-import crypto
-import main
-import storage
 
 
 def test_b1_keyfile_path_does_not_raise_nameerror(tmp_path, monkeypatch):
@@ -196,7 +195,6 @@ def test_pgp_creation_time_is_always_in_the_past():
 
 def _write_log(entries, master_hash):
     """entries: list of (text, encrypted?) written in order, as the CLI would."""
-    import storage
     for text, encrypted in entries:
         storage.log_hashes_to_file(text, master_hash, encrypt=encrypted)
 

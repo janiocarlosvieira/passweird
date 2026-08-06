@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Windows is in the matrix on purpose: it is one of the two platforms this
+    # project is distributed for, and it is what actually verifies the ANSI/
+    # colorama fix and general Windows path handling instead of assuming them.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install GnuPG (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+
+      # --pgp is exercised only when a gpg binary is on PATH (tests skip
+      # otherwise, see tests/test_cli.py::test_pgp_flag) - no Windows GnuPG
+      # setup here, matching that every install is opt-in via the `pgp` extra.
+
+      - name: Install passweird with dev extras
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+      - name: Verify the console script resolves
+        run: passweird --help

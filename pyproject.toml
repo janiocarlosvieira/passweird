@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "passweird"
+version = "0.1.0"
+description = "Deterministic, stateless generator for passwords, SSH/SSL/RSA keys, TOTP and PGP identities"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Janio Carlos Vieira" },
+]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Utilities",
+]
+
+# cryptography is the only dependency imported at module load time; pyotp,
+# python-gnupg and fido2 are all imported lazily inside the functions that need
+# them (--totp / --pgp / --fido2), so they map onto extras instead of being
+# forced on every user.
+dependencies = [
+    "cryptography>=3.4.8",
+    "colorama>=0.4.6; platform_system == 'Windows'",
+]
+
+[project.optional-dependencies]
+totp = ["pyotp>=2.10.0"]
+pgp = ["python-gnupg>=0.4.8"]     # still needs the `gpg` binary on PATH - not pip-installable
+fido2 = ["fido2>=2.2.1"]
+all = ["passweird[totp,pgp,fido2]"]
+dev = [
+    "pytest>=6.2.5",
+    "pyotp>=2.10.0",
+    "python-gnupg>=0.4.8",
+    "fido2>=2.2.1",
+    # Test-only: independent primality check (Baillie-PSW) used to cross-verify
+    # the hand-rolled Miller-Rabin in crypto.py. Never imported at runtime.
+    "sympy>=1.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/janiocarlosvieira/passweird"
+Repository = "https://github.com/janiocarlosvieira/passweird"
+
+[project.scripts]
+passweird = "passweird.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/passweird"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: tests that derive large key material (deselect with '-m \"not slow\"')",
+]

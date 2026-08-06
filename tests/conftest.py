@@ -1,9 +1,7 @@
-import os
-import sys
-
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# No sys.path hack: passweird is an installed (editable) package once
+# `pip install -e ".[dev]"` has been run, so tests import it like any dependency.
 
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path, monkeypatch):

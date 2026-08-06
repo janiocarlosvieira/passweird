@@ -12,9 +12,16 @@ import sys
 import tempfile
 from datetime import datetime
 
-import crypto
-import storage
-from storage import _
+from . import crypto
+from . import storage
+from .storage import _
+
+# Legacy Windows consoles (cmd.exe / older conhost) don't translate raw ANSI escape
+# codes and print them as garbage instead of color; colorama patches stdout to
+# translate them. No-op on Linux/macOS, where the dependency isn't even installed.
+if sys.platform == "win32":
+    import colorama
+    colorama.init()
 
 ANSI_COLORS = {
     "black": "\033[30m", "red": "\033[31m", "green": "\033[32m", "yellow": "\033[33m",

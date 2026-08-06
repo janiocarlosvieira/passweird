@@ -1,9 +1,10 @@
 import os
+from passweird import crypto
+
 
 import pyotp
 import pytest
 
-import crypto
 
 
 def test_hkdf_expand_deterministic_and_length():

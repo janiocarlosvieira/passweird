@@ -1,10 +1,10 @@
 import csv
 import os
+from passweird import crypto, storage
+
 
 import pytest
 
-import crypto
-import storage
 
 
 def test_export_formats_completeness():

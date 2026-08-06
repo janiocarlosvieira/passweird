@@ -1,8 +1,0 @@
--r requirements.txt
-
-pytest>=6.2.5            # verificado em 6.2.5
-
-# Só para testes: verificação de primalidade independente (Baillie-PSW), usada
-# para cruzar com o Miller-Rabin escrito à mão em crypto.py. Nunca importada em
-# tempo de execução — se ausente, os testes que a usam são pulados.
-sympy>=1.9               # verificado em 1.9

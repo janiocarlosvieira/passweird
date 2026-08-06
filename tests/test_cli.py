@@ -1,12 +1,11 @@
 import csv
 import os
 import sys
+from passweird import crypto, main, storage
+
 
 import pytest
 
-import crypto
-import main
-import storage
 
 
 def _run(monkeypatch, argv, getpass_inputs=None, input_inputs=None):
