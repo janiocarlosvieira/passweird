@@ -264,3 +264,22 @@ def test_mixed_log_wrong_master_still_returns_plaintext_records(isolated_home):
     records = storage.read_logs_from_file(crypto.modified_hash("WRONG"))
     assert len(records) == 1
     assert "plain" in records[0]
+
+
+def test_home_isolation_holds_on_every_platform(isolated_home):
+    """
+    The isolated_home fixture used to set only HOME, which os.path.expanduser
+    ignores on Windows (ntpath reads USERPROFILE, then HOMEDRIVE + HOMEPATH, and
+    never falls back to HOME). The whole suite therefore wrote into the real user
+    profile there, and tests saw each other's logs and registered master hashes -
+    18 failures on the first Windows CI run, all from that single cause.
+
+    Asserting the fixture's actual contract, rather than the variables behind it,
+    keeps this correct on any platform.
+    """
+    resolved = os.path.realpath(os.path.expanduser("~"))
+    assert resolved == os.path.realpath(str(isolated_home))
+
+    # And the path the application actually uses lands inside the sandbox.
+    state_dir = os.path.realpath(os.path.expanduser("~/.passweird"))
+    assert state_dir.startswith(os.path.realpath(str(isolated_home)))
