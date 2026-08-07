@@ -1,0 +1,394 @@
+{
+  "format_version": 1,
+  "engine_version": "v2",
+  "description": "Golden derivation vectors for Passweird. Python is the normative implementation (ADR-0008); every port must reproduce these exactly. Intermediate values are included so a failure localizes to a stage.",
+  "encoding_notes": [
+    "All strings are UTF-8. Hashes are lowercase hex.",
+    "Password indexing iterates raw bytes as UNSIGNED 0..255. On the JVM Byte is signed (-128..127) and % preserves the sign, which silently produces a different but still plausible-looking password.",
+    "Charset order is lowercase + uppercase + digits + \"!@#$%^&*()_+-=.\" and is load-bearing.",
+    "TOTP secrets are RFC 4648 Base32 with padding stripped."
+  ],
+  "modified_hash": [
+    {
+      "label": "ascii",
+      "input": "minhasenha",
+      "expected": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39"
+    },
+    {
+      "label": "empty",
+      "input": "",
+      "expected": "6255887a756104cf94678d4c476b56dbec74e3713d1453de823e905937b58527"
+    },
+    {
+      "label": "unicode-multibyte",
+      "input": "señhã-mestra-ç∂é",
+      "expected": "87d5410f51b0594bbba8c213f1278f940afa48faa379f9de9a9e5f718d967000"
+    },
+    {
+      "label": "long",
+      "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected": "08bbc0379b153679eeb61b8fb6c0b80780439a29bdce921e21ae88b581430086"
+    },
+    {
+      "label": "spaces-and-punctuation",
+      "input": "correct horse battery staple!",
+      "expected": "fdc182318a7cee559e1b5303e1f691c61ff875e7ef05e37c2bf30e5b3cd80569"
+    }
+  ],
+  "blend_secondary_factor": [
+    {
+      "label": "short",
+      "base_hash": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "factor_hex": "706879736963616c20666163746f72206279746573",
+      "expected": "59c70f6860834995cb4c402747cb81f0f1b224c09a053d5c232c28463de56ed0"
+    },
+    {
+      "label": "empty",
+      "base_hash": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "factor_hex": "",
+      "expected": "623aecf4baf4de0f248918d6ed74108c39957786590a6e6997200b34df0500b6"
+    },
+    {
+      "label": "high-bytes",
+      "base_hash": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "factor_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+      "expected": "c5e5da9f715b4945c8fe4e9b62682a89d2ba99301d6d9af55317dcf45f3c58e6"
+    }
+  ],
+  "hkdf_expand": [
+    {
+      "label": "single-byte",
+      "prk_utf8": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "info_utf8": "ctx:test",
+      "length": 1,
+      "expected_hex": "a0"
+    },
+    {
+      "label": "exactly-one-block",
+      "prk_utf8": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "info_utf8": "ctx:test",
+      "length": 64,
+      "expected_hex": "a0f8a2ad8cf886e0a3b0ec3bdc7802de90ed9bac837c77a656ba88f6cc793dc985a71bda05fc6a4eeef0e4159f98574160038bc7ea153fdf05d0c602b7109f26"
+    },
+    {
+      "label": "crosses-block-boundary",
+      "prk_utf8": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "info_utf8": "ctx:test",
+      "length": 65,
+      "expected_hex": "a0f8a2ad8cf886e0a3b0ec3bdc7802de90ed9bac837c77a656ba88f6cc793dc985a71bda05fc6a4eeef0e4159f98574160038bc7ea153fdf05d0c602b7109f2691"
+    },
+    {
+      "label": "three-blocks",
+      "prk_utf8": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "info_utf8": "ctx:test",
+      "length": 200,
+      "expected_hex": "a0f8a2ad8cf886e0a3b0ec3bdc7802de90ed9bac837c77a656ba88f6cc793dc985a71bda05fc6a4eeef0e4159f98574160038bc7ea153fdf05d0c602b7109f269100ad064db74d58dc9ac0f1f03920a936fe414c6704d6f34814974220a376017fefca3976fcb6bb7ff6beeb4535d6097fd17ea621b85efd3eb70b6cdcfb83278f38608869ffb38f5a0f28eaa284f293ecc3ec743375131791529c462be18d85bb2059e5e6fd82be8162c8c2451227ae08d11b3d6938d92e5c4df7c4afc90a84f6071bd666610f68"
+    },
+    {
+      "label": "unicode-info",
+      "prk_utf8": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "info_utf8": "地球-サーバー:ssl_seed:",
+      "length": 32,
+      "expected_hex": "4e7c3caefac34a353b31edf576d259e3cec74743e8405606174fbf2a795c8254"
+    }
+  ],
+  "password": [
+    {
+      "label": "default-18-all-classes",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "Lx_uhnx0wGceDhwO98"
+    },
+    {
+      "label": "min-length-8",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 8,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 7,
+      "raw_hkdf_hex": "c19cf91592d56ab0",
+      "expected_password": "Ncsv*7Dw"
+    },
+    {
+      "label": "long-64",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 64,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "d4309da5719952a39f8d4e17c94f4db61ba56442171163742c9fee824eee3092781e85da3864a7986d051d912111ee40c382dbefabb46ae205978c2b8333faf4",
+      "expected_password": "6WdlK.fjf#bxVcaCBlx%xrwNSfh1bhW*RE4#4xn=GfD&Hrh#P1$irAD_f-@R2Ztn"
+    },
+    {
+      "label": "with-temporal-salt",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "cavalo bateria grampo correto girassol trombone",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "13563a4a1030f5d4c433614b238d54fe761f",
+      "expected_password": "tj6-qWo6QZu=J#hxPF"
+    },
+    {
+      "label": "unicode-master",
+      "master_password": "señhã-mestra-ç∂é",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "87d5410f51b0594bbba8c213f1278f940afa48faa379f9de9a9e5f718d967000",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "4be0d8db758620f2bad34994094be73823ff",
+      "expected_password": "=(!$O5GlG5+)j=a4Jy"
+    },
+    {
+      "label": "unicode-context",
+      "master_password": "minhasenha",
+      "context": "地球-サーバー",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "543213569a014c7d06db3040f65b946f87a342b3abc78ce08e5e6e418f1d313b",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "5d9f8a55a20c00e9aa9abcb9f30b8b092aa0",
+      "expected_password": "qf9iimacqaIFml!jQg"
+    },
+    {
+      "label": "unicode-both-and-salt",
+      "master_password": "señhã-mestra-ç∂é",
+      "context": "地球-サーバー",
+      "length": 18,
+      "temporal_salt": "señhã-mestra-ç∂é",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "87d5410f51b0594bbba8c213f1278f940afa48faa379f9de9a9e5f718d967000",
+      "app_hash": "543213569a014c7d06db3040f65b946f87a342b3abc78ce08e5e6e418f1d313b",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "adf56d47cfa1ce4f5d3f216dcdd7b465bd6b",
+      "expected_password": "toG)1h0cq@HGZ9AyJE"
+    },
+    {
+      "label": "no-special",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": false,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "fgzJw6gufVVXSw039C"
+    },
+    {
+      "label": "no-digits",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": false,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "^@pErR@f!QGINrQY)n"
+    },
+    {
+      "label": "no-upper",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": false,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "#.+_7%.c=h35e7xpkk"
+    },
+    {
+      "label": "no-lower",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": false,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "#.+_7%.C=H35E7XPKK"
+    },
+    {
+      "label": "digits-only-min-6",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 6,
+      "temporal_salt": "",
+      "use_upper": false,
+      "use_lower": false,
+      "use_digits": true,
+      "use_special": false,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "08c94375a275",
+      "expected_password": "817727"
+    },
+    {
+      "label": "lowercase-only",
+      "master_password": "minhasenha",
+      "context": "github",
+      "length": 18,
+      "temporal_salt": "",
+      "use_upper": false,
+      "use_lower": true,
+      "use_digits": false,
+      "use_special": false,
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "compliance_nonce": 0,
+      "raw_hkdf_hex": "bffe956154f4fecefd6de9eb6a54b0753dd6",
+      "expected_password": "juttgkuytfzbcgunjg"
+    },
+    {
+      "label": "compliance-loop-ctx-1-nonce-1",
+      "master_password": "compliance-probe",
+      "context": "ctx-1",
+      "length": 8,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "100578c757005365e59a728932f5b0392dbe3b3baa211666105d6c20ea40ea8b",
+      "app_hash": "a8b5c4bfee60592d15d34380038392c1d18ce04183cddb7acd760d4aac6b99e8",
+      "compliance_nonce": 1,
+      "raw_hkdf_hex": "d53e277559fb8bbe",
+      "expected_password": "7!NOmu!K"
+    },
+    {
+      "label": "compliance-loop-ctx-2-nonce-1",
+      "master_password": "compliance-probe",
+      "context": "ctx-2",
+      "length": 8,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "100578c757005365e59a728932f5b0392dbe3b3baa211666105d6c20ea40ea8b",
+      "app_hash": "f272877772d32530965019e7bdbbe42c8dbd5412a11f39093502268064e70550",
+      "compliance_nonce": 1,
+      "raw_hkdf_hex": "0f2f1cd9b1ce526f",
+      "expected_password": "pVC@x0fI"
+    },
+    {
+      "label": "compliance-loop-ctx-5-nonce-2",
+      "master_password": "compliance-probe",
+      "context": "ctx-5",
+      "length": 8,
+      "temporal_salt": "",
+      "use_upper": true,
+      "use_lower": true,
+      "use_digits": true,
+      "use_special": true,
+      "master_hash": "100578c757005365e59a728932f5b0392dbe3b3baa211666105d6c20ea40ea8b",
+      "app_hash": "4ae45ec8ccb0866924916619a3b6146554355b90894ac8e61dd70caa152010d3",
+      "compliance_nonce": 2,
+      "raw_hkdf_hex": "df4d8b5718b38524",
+      "expected_password": "*a!kyz4K"
+    }
+  ],
+  "totp": [
+    {
+      "label": "basic",
+      "master_password": "minhasenha",
+      "context": "github",
+      "temporal_salt": "",
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "expected_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB"
+    },
+    {
+      "label": "with-temporal",
+      "master_password": "minhasenha",
+      "context": "github",
+      "temporal_salt": "2026-rotation",
+      "master_hash": "b81bb37aceffed285f0dbcae062191d3a46dd74ac006da2264fb2871a91f9c39",
+      "app_hash": "c04a842f4e114e440756f7e9cad243be496502e44579a0a211e1766c0bad17d2",
+      "expected_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG"
+    },
+    {
+      "label": "unicode",
+      "master_password": "señhã-mestra-ç∂é",
+      "context": "地球-サーバー",
+      "temporal_salt": "",
+      "master_hash": "87d5410f51b0594bbba8c213f1278f940afa48faa379f9de9a9e5f718d967000",
+      "app_hash": "543213569a014c7d06db3040f65b946f87a342b3abc78ce08e5e6e418f1d313b",
+      "expected_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z"
+    }
+  ],
+  "summaries": [
+    {
+      "label": "summarize_hash",
+      "input": "9a13c67e4a46e2bd4df526fe9c43059327faa8e9a9e56d8a555edc63ff5b86e1",
+      "expected": "9a13c67e4a63ff5b86e1"
+    },
+    {
+      "label": "summarize_password_hash",
+      "input": "SomePassword123!",
+      "expected": "34a6d0e65804cf57bfbb"
+    }
+  ]
+}

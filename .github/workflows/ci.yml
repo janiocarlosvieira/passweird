@@ -37,5 +37,11 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -v
 
+      # Catches a derivation change that was made without regenerating the golden
+      # vectors - i.e. a silent compatibility break for every already-deployed
+      # password. See tests/vectors/README.md and ADR-0008.
+      - name: Verify the golden vectors are up to date
+        run: python tools/generate_vectors.py --check
+
       - name: Verify the console script resolves
         run: passweird --help
