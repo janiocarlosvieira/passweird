@@ -1,10 +1,28 @@
 import csv
 import os
+import re
 import sys
 from passweird import crypto, main, storage
 
 
 import pytest
+
+
+_LOG_TIMESTAMP = re.compile(r"^\d{14} ", re.MULTILINE)
+
+
+def _without_timestamp(output):
+    """
+    Strips the log line's wall-clock stamp before comparing two runs.
+
+    build_and_log_line prefixes every summary line with a YYYYMMDDHHMMSS date_str,
+    so comparing raw stdout across two runs is a race: it fails whenever they
+    straddle a second boundary, which is what happened on the slower Windows
+    runner. The stamp is a property of the clock, not of the derivation - and the
+    derivation is what these tests actually assert. Everything else in the line,
+    including the pwd: and key: fingerprints, is still compared.
+    """
+    return _LOG_TIMESTAMP.sub("<timestamp> ", output)
 
 
 
@@ -164,7 +182,7 @@ def test_gen_keyfile_random_then_key_file_roundtrip(monkeypatch, tmp_path, capsy
 
     _run_no_exit(monkeypatch, ["testapp", "--key-file", keyfile_path, "-T", ""], getpass_inputs=["mymaster"])
     out2 = capsys.readouterr().out
-    assert out1 == out2
+    assert _without_timestamp(out1) == _without_timestamp(out2)
 
     code_wrong = _run(monkeypatch, ["testapp", "--key-file", keyfile_path, "-T", ""], getpass_inputs=["WRONGMASTER"])
     assert code_wrong == 1
