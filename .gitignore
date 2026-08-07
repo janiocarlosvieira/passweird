@@ -61,6 +61,19 @@ dist/
 *.egg-info/
 *.egg
 
+# --- Kotlin / Gradle (núcleo compartilhado, ADR-0008) -------------------------
+
+.gradle/
+kotlin/local.properties
+kotlin/**/build/
+*.hprof
+
+# Artefatos Android, para quando o alvo for adicionado
+*.apk
+*.aab
+*.keystore
+*.jks
+
 # Ambientes virtuais
 venv/
 .venv/
