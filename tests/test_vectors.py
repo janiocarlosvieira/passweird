@@ -17,6 +17,7 @@ import base64
 import json
 import pathlib
 
+import pyotp
 import pytest
 
 from passweird import crypto
@@ -31,7 +32,7 @@ def _cases(group):
 
 
 def test_vector_file_metadata():
-    assert VECTORS["format_version"] == 1
+    assert VECTORS["format_version"] == 2
     assert VECTORS["engine_version"] == "v2"
 
 
@@ -103,6 +104,37 @@ def test_totp_vectors(case):
     # Base32 without padding, and decodable back to the 160-bit TOTP seed.
     assert "=" not in secret
     assert len(base64.b32decode(secret + "=" * (-len(secret) % 8))) == 20
+
+
+@pytest.mark.parametrize("case", _cases("totp_code"))
+def test_totp_code_vectors(case):
+    """
+    The 6-digit code, not just the secret. A port can derive the right secret and
+    still show wrong codes - a sign error in RFC 4226's dynamic truncation, wrong
+    counter endianness, or Base32 decoding that mishandles stripped padding - and
+    a wrong code is indistinguishable from a right one by eye.
+    """
+    totp = pyotp.TOTP(case["secret_base32"])
+    assert totp.at(case["epoch_seconds"]) == case["expected_code"]
+    assert len(case["expected_code"]) == 6
+    assert case["expected_code"].isdigit()
+    assert 30 - (case["epoch_seconds"] % 30) == case["expected_seconds_remaining"]
+
+
+@pytest.mark.parametrize("case", _cases("totp_uri"))
+def test_totp_uri_vectors(case):
+    uri = pyotp.TOTP(case["secret_base32"]).provisioning_uri(
+        name=case["context"], issuer_name="Passweird"
+    )
+    assert uri == case["expected_uri"]
+
+
+def test_totp_code_vectors_use_fixed_timestamps_not_now():
+    """A suite reading the clock would pass under any constant time offset."""
+    epochs = {c["epoch_seconds"] for c in VECTORS["totp_code"]}
+    assert 0 in epochs
+    # Both sides of a 30-second boundary, so an off-by-one in the counter shows.
+    assert {29, 30}.issubset(epochs)
 
 
 def test_summary_vectors():

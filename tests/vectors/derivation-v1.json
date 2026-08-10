@@ -1,5 +1,5 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "engine_version": "v2",
   "description": "Golden derivation vectors for Passweird. Python is the normative implementation (ADR-0008); every port must reproduce these exactly. Intermediate values are included so a failure localizes to a stage.",
   "encoding_notes": [
@@ -377,6 +377,181 @@
       "master_hash": "87d5410f51b0594bbba8c213f1278f940afa48faa379f9de9a9e5f718d967000",
       "app_hash": "543213569a014c7d06db3040f65b946f87a342b3abc78ce08e5e6e418f1d313b",
       "expected_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z"
+    }
+  ],
+  "totp_code": [
+    {
+      "label": "basic-t0",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 0,
+      "expected_code": "604450",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "basic-t29",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 29,
+      "expected_code": "604450",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "basic-t30",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 30,
+      "expected_code": "407354",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "basic-t59",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 59,
+      "expected_code": "407354",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "basic-t60",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 60,
+      "expected_code": "966132",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "basic-t1234567890",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 1234567890,
+      "expected_code": "339327",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "basic-t2000000000",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "epoch_seconds": 2000000000,
+      "expected_code": "798521",
+      "expected_seconds_remaining": 10
+    },
+    {
+      "label": "with-temporal-t0",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 0,
+      "expected_code": "895139",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "with-temporal-t29",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 29,
+      "expected_code": "895139",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "with-temporal-t30",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 30,
+      "expected_code": "631800",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "with-temporal-t59",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 59,
+      "expected_code": "631800",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "with-temporal-t60",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 60,
+      "expected_code": "122461",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "with-temporal-t1234567890",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 1234567890,
+      "expected_code": "380941",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "with-temporal-t2000000000",
+      "secret_base32": "Q43KEBFVXJF44EUPLGPAZ7KMZZAWM4CG",
+      "epoch_seconds": 2000000000,
+      "expected_code": "950973",
+      "expected_seconds_remaining": 10
+    },
+    {
+      "label": "unicode-t0",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 0,
+      "expected_code": "507512",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "unicode-t29",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 29,
+      "expected_code": "507512",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "unicode-t30",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 30,
+      "expected_code": "908708",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "unicode-t59",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 59,
+      "expected_code": "908708",
+      "expected_seconds_remaining": 1
+    },
+    {
+      "label": "unicode-t60",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 60,
+      "expected_code": "102725",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "unicode-t1234567890",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 1234567890,
+      "expected_code": "191448",
+      "expected_seconds_remaining": 30
+    },
+    {
+      "label": "unicode-t2000000000",
+      "secret_base32": "UE5LVZ4TNVG7QVJ2SOFUHHVN24A7EH2Z",
+      "epoch_seconds": 2000000000,
+      "expected_code": "419899",
+      "expected_seconds_remaining": 10
+    }
+  ],
+  "totp_uri": [
+    {
+      "label": "plain",
+      "context": "github",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "expected_uri": "otpauth://totp/Passweird:github?secret=IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB&issuer=Passweird"
+    },
+    {
+      "label": "with-space",
+      "context": "minha conta",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "expected_uri": "otpauth://totp/Passweird:minha%20conta?secret=IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB&issuer=Passweird"
+    },
+    {
+      "label": "email",
+      "context": "user@example.com",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "expected_uri": "otpauth://totp/Passweird:user%40example.com?secret=IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB&issuer=Passweird"
+    },
+    {
+      "label": "unicode",
+      "context": "地球-サーバー",
+      "secret_base32": "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB",
+      "expected_uri": "otpauth://totp/Passweird:%E5%9C%B0%E7%90%83-%E3%82%B5%E3%83%BC%E3%83%90%E3%83%BC?secret=IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB&issuer=Passweird"
     }
   ],
   "summaries": [

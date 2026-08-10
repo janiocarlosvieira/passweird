@@ -14,3 +14,8 @@ internal actual fun hmacSha512(key: ByteArray, message: ByteArray): ByteArray =
     Mac.getInstance("HmacSHA512").apply {
         init(SecretKeySpec(key, "HmacSHA512"))
     }.doFinal(message)
+
+internal actual fun hmacSha1(key: ByteArray, message: ByteArray): ByteArray =
+    Mac.getInstance("HmacSHA1").apply {
+        init(SecretKeySpec(key, "HmacSHA1"))
+    }.doFinal(message)

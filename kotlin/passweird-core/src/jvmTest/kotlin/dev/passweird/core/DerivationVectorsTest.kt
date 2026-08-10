@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.long
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -43,8 +44,8 @@ class DerivationVectorsTest {
 
     @TestFactory
     fun `vector file metadata`(): List<DynamicTest> = listOf(
-        DynamicTest.dynamicTest("format_version == 1") {
-            assertEquals(1, vectors["format_version"]!!.jsonPrimitive.int)
+        DynamicTest.dynamicTest("format_version == 2") {
+            assertEquals(2, vectors["format_version"]!!.jsonPrimitive.int)
         },
         DynamicTest.dynamicTest("engine_version == v2") {
             assertEquals(Derivation.ENGINE_VERSION, vectors["engine_version"]!!.jsonPrimitive.content)
@@ -141,6 +142,43 @@ class DerivationVectorsTest {
             assertEquals(false, secret.contains('='))
         }
     }
+
+    @TestFactory
+    fun `totp code vectors`(): List<DynamicTest> = group("totp_code").map { case ->
+        DynamicTest.dynamicTest(case.str("label")) {
+            // Fixed epochs, never a clock: a test reading "now" would pass under
+            // any constant time offset. These sit either side of a 30-second
+            // boundary so an off-by-one in the counter division shows up.
+            val epoch = case["epoch_seconds"]!!.jsonPrimitive.long
+            assertEquals(case.str("expected_code"), Totp.codeAt(case.str("secret_base32"), epoch))
+            assertEquals(
+                case.int("expected_seconds_remaining"),
+                Totp.secondsRemaining(epoch),
+            )
+        }
+    }
+
+    @TestFactory
+    fun `totp uri vectors`(): List<DynamicTest> = group("totp_uri").map { case ->
+        DynamicTest.dynamicTest(case.str("label")) {
+            assertEquals(
+                case.str("expected_uri"),
+                Totp.provisioningUri(case.str("secret_base32"), case.str("context")),
+            )
+        }
+    }
+
+    @TestFactory
+    fun `base32 round-trips through the decoder`(): List<DynamicTest> =
+        group("totp").map { case ->
+            DynamicTest.dynamicTest(case.str("label")) {
+                // Passweird strips the '=' padding it emits, so the decoder has to
+                // accept unpadded input - the exact shape it will always be given.
+                val secret = case.str("expected_base32")
+                assertEquals(20, Base32.decode(secret).size)
+                assertEquals(secret, Base32.encode(Base32.decode(secret)).trimEnd('='))
+            }
+        }
 
     @TestFactory
     fun `summary vectors`(): List<DynamicTest> = group("summaries").map { case ->

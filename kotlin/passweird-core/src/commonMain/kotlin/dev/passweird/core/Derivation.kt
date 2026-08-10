@@ -138,7 +138,7 @@ object Derivation {
     fun generateTotpSecret(masterHash: String, appHash: String, temporalSalt: String = ""): String {
         val info = "$appHash:totp_seed:$temporalSalt".encodeToByteArray()
         val seed = hkdfExpand(masterHash.encodeToByteArray(), info, 20)
-        return base32Encode(seed).trimEnd('=')
+        return Base32.encode(seed).trimEnd('=')
     }
 
     /** 20-character visual summary of a hash, used by the local log. */
@@ -148,26 +148,4 @@ object Derivation {
     /** Hashes a password and returns its 20-character summary. */
     fun summarizePasswordHash(password: String): String =
         summarizeHash(sha256(password.encodeToByteArray()).toHex())
-
-    private const val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-
-    private fun base32Encode(data: ByteArray): String {
-        if (data.isEmpty()) return ""
-        val out = StringBuilder()
-        var buffer = 0
-        var bitsLeft = 0
-        for (b in data) {
-            buffer = (buffer shl 8) or (b.toInt() and 0xFF)
-            bitsLeft += 8
-            while (bitsLeft >= 5) {
-                out.append(BASE32_ALPHABET[(buffer shr (bitsLeft - 5)) and 0x1F])
-                bitsLeft -= 5
-            }
-        }
-        if (bitsLeft > 0) {
-            out.append(BASE32_ALPHABET[(buffer shl (5 - bitsLeft)) and 0x1F])
-        }
-        while (out.length % 8 != 0) out.append('=')
-        return out.toString()
-    }
 }

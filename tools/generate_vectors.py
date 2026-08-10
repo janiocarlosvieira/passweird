@@ -38,7 +38,7 @@ import sys
 
 from passweird import crypto
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 OUTPUT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "vectors" / "derivation-v1.json"
 
 # Multi-byte UTF-8 on purpose: encoding must match across languages, and this is
@@ -258,6 +258,58 @@ def build():
             ("basic", "minhasenha", "github", ""),
             ("with-temporal", "minhasenha", "github", "2026-rotation"),
             ("unicode", UNICODE_MASTER, UNICODE_CONTEXT, ""),
+        ]
+    ]
+
+    # --- TOTP codes: the 6-digit output an authenticator would show ---
+    #
+    # The secret alone is not enough to pin. A port can derive the right secret
+    # and still show wrong codes - through a sign error in the dynamic
+    # truncation, a wrong counter endianness, or Base32 decoding that mishandles
+    # stripped padding - and a wrong 6-digit code looks exactly like a right one.
+    #
+    # Timestamps are fixed, never "now": a test reading the clock would pass under
+    # any constant time offset. The chosen instants sit at the start, middle and
+    # end of a 30-second window so an off-by-one in the counter division shows up.
+    import pyotp
+
+    code_cases = []
+    for label, mp, ctx, salt in [
+        ("basic", "minhasenha", "github", ""),
+        ("with-temporal", "minhasenha", "github", "2026-rotation"),
+        ("unicode", UNICODE_MASTER, UNICODE_CONTEXT, ""),
+    ]:
+        secret = crypto.generate_deterministic_totp_secret(
+            crypto.modified_hash(mp), crypto.modified_hash(ctx), salt
+        )
+        totp = pyotp.TOTP(secret)
+        for epoch in (0, 29, 30, 59, 60, 1234567890, 2000000000):
+            code_cases.append({
+                "label": f"{label}-t{epoch}",
+                "secret_base32": secret,
+                "epoch_seconds": epoch,
+                "expected_code": totp.at(epoch),
+                "expected_seconds_remaining": 30 - (epoch % 30),
+            })
+    vectors["totp_code"] = code_cases
+
+    # --- otpauth:// provisioning URIs ---
+    # Percent-encoding has to match urllib.parse.quote exactly, including that
+    # '@' is encoded - contexts are often email addresses.
+    vectors["totp_uri"] = [
+        {
+            "label": label,
+            "context": ctx,
+            "secret_base32": secret,
+            "expected_uri": pyotp.TOTP(secret).provisioning_uri(
+                name=ctx, issuer_name="Passweird"
+            ),
+        }
+        for label, ctx, secret in [
+            ("plain", "github", "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB"),
+            ("with-space", "minha conta", "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB"),
+            ("email", "user@example.com", "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB"),
+            ("unicode", UNICODE_CONTEXT, "IQ2IKFU22AVTL6SJ6U4WWUTCCAIG75IB"),
         ]
     ]
 
