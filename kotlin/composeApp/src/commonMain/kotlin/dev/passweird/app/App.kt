@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,7 +49,18 @@ fun App(state: AppState, security: PlatformSecurity) {
     MaterialTheme {
         var tab by remember { mutableStateOf(0) }
 
-        Column(Modifier.fillMaxSize()) {
+        // safeDrawing keeps the content clear of the status bar, the navigation
+        // bar, the camera cutout and the IME. Not cosmetic: targetSdk 35 opts
+        // into mandatory edge-to-edge on Android 15+, and without this the tab
+        // strip was drawn under the system bars on a Galaxy S23 Ultra - 94 of its
+        // 135 pixels covered, so taps on the TOTP tab went to the status bar and
+        // never reached the app. Desktop has no insets, which is why the desktop
+        // target could not have shown this.
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+        ) {
             TabRow(selectedTabIndex = tab) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Password") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("TOTP") })
