@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -61,6 +62,17 @@ kotlin {
     }
 }
 
+// Release signing is configured from keystore.properties, which is gitignored and
+// never committed. If the file is absent - which it is for anyone who clones the
+// repository, and in CI - the release build simply stays unsigned rather than
+// failing, so `assembleDebug` and the test tasks keep working.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "dev.passweird.app"
     compileSdk = 35
@@ -78,9 +90,25 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        if (keystoreProperties.isNotEmpty()) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         getByName("release") {
+            // Left off deliberately for now: R8 renaming would make the shipped
+            // artifact harder to relate to the published source, and for a tool
+            // asking users to trust it with a master password, auditability is
+            // worth more than the few hundred KB shrinking would save.
             isMinifyEnabled = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 }

@@ -100,3 +100,8 @@ ENV/
 .Trashes
 Thumbs.db
 desktop.ini
+
+# Credenciais de assinatura Android — nunca versionadas.
+# Perder a keystore significa não conseguir mais atualizar o app publicado
+# (recuperável via suporte do Google se usar Play App Signing, mas é burocracia).
+kotlin/keystore.properties
