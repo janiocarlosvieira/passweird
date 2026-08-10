@@ -78,6 +78,15 @@ jobs:
       - name: Build the Android library artifact
         run: ./gradlew --no-daemon :passweird-core:assembleRelease
 
+      # The app's own state layer, asserted against values the Python reference
+      # produces. A correct core can still be wired up wrongly by a screen -
+      # wrong flag passed, stale result left on display, wrong default length.
+      - name: Run the app state tests
+        run: ./gradlew --no-daemon :composeApp:desktopTest
+
+      - name: Build the Android APK
+        run: ./gradlew --no-daemon :composeApp:assembleDebug
+
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

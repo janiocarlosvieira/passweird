@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- No INTERNET permission, deliberately. Passweird derives everything
+         locally and has nothing to send anywhere, and the absence of that
+         permission is a claim a user can verify without reading any source.
+         (USE_BIOMETRIC and USE_FINGERPRINT do appear in the built manifest -
+         androidx.biometric merges them in - but no network permission does.) -->
+
+    <application
+        android:label="Passweird"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Passweird">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Passweird"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.Passweird">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

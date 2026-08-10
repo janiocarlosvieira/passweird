@@ -1,6 +1,7 @@
 rootProject.name = "passweird"
 
 include(":passweird-core")
+include(":composeApp")
 
 pluginManagement {
     repositories {
