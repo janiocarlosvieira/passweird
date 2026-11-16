@@ -678,6 +678,112 @@
    ]
   },
   {
+   "name": "conflict-heads-in-merge-order",
+   "why": "heads and candidates follow (ts, device, seq), not device id: bb… comes first here",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 5,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 5,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": true,
+     "heads": [
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ],
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ]
+     ],
+     "candidates": [
+      {
+       "counter": 4,
+       "length": 18,
+       "classes": 15,
+       "device": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "ts": 200
+      },
+      {
+       "counter": 5,
+       "length": 18,
+       "classes": 15,
+       "device": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "ts": 300
+      }
+     ]
+    }
+   ]
+  },
+  {
    "name": "concurrent-notes-only",
    "why": "free-form fields differ: last writer wins, no conflict",
    "streams": {

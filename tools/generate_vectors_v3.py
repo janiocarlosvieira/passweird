@@ -405,6 +405,11 @@ def build_journal():
             DEV_A: [a0, _put(200, counter=3, length=20, parents=[[DEV_A, 0]])],
             DEV_B: [_put(250, counter=3, length=16, parents=[[DEV_A, 0]])],
         }),
+        _scenario("conflict-heads-in-merge-order",
+                  "heads and candidates follow (ts, device, seq), not device id: bb… comes first here", {
+            DEV_A: [a0, _put(300, counter=5, parents=[[DEV_A, 0]])],
+            DEV_B: [_put(200, counter=4, parents=[[DEV_A, 0]])],
+        }),
         _scenario("concurrent-notes-only", "free-form fields differ: last writer wins, no conflict", {
             DEV_A: [a0, _put(200, counter=3, parents=[[DEV_A, 0]], notes="nota de A")],
             DEV_B: [_put(250, counter=3, parents=[[DEV_A, 0]], notes="nota de B")],
