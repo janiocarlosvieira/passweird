@@ -63,15 +63,15 @@
    "user_id": "José@Exemplo.BR",
    "canonical": {
     "master": "señhã-mestra-ç∂é 地球",
-    "boost": "água pão maçã coração avó",
+    "boost": "agua pao maca coracao avo",
     "user_id": "josé@exemplo.br"
    },
-   "argon2_password_hex": "001d7365c3b168c3a32d6d65737472612dc3a7e28882c3a920e59cb0e790830020c3a16775612070c3a36f206d61c3a7c3a320636f7261c3a7c3a36f206176c3b3",
+   "argon2_password_hex": "001d7365c3b168c3a32d6d65737472612dc3a7e28882c3a920e59cb0e790830019616775612070616f206d61636120636f726163616f2061766f",
    "argon2_salt_hex": "564a6491e35bc2bfe0572be1ec060cba85bf979df2e1af95c83a3013181d8568",
-   "k0_hex": "525b7aaa8ff8447b6eb49bfae4b74875bf5ba4faf681ad40d4796160a596b5057fed30641592b03c103482a6a182bcb6d1594f0d79e282b6b588681c2878a226",
-   "prk_none_hex": "f08dba8bff770c6e098a3a03c144b42a37136ae9552f7ff480afbb2c09f776a93f9121c13fd5ebd57a4d87b6eaa61891b8ec4d1da2280d65da590db20194423d",
-   "fingerprint": "posi-lile",
-   "password_github": "AfmTR5@14W6YCplL)%"
+   "k0_hex": "c4e547ec414aeddb4041284ac5b71b59f5b60e3da4c5605401b4a2294d6a6d013e382175785a8a968be4f8135e073c4326809980362d9a8d146604aa4ceabd56",
+   "prk_none_hex": "d5be30e0fb598418c7722e42440744892e0f11bb5f6b160fa29eb472638bd847b5cb79dd69abce913bd6e8318c2de95e6f7c6305ba526213a2689d63a69078d3",
+   "fingerprint": "vazi-dano",
+   "password_github": "h7gdbOhM_1hnVPNhER"
   },
   {
    "label": "needs-canonicalisation",

@@ -1,6 +1,6 @@
 # ADR-0009 — v3: memory-hard stretching, canonical inputs and a tiered, syncable journal
 
-**Status:** Accepted (revision 4)
+**Status:** Accepted (revision 5)
 **Date:** 2026-11-16
 **Supersedes (when accepted):** the "risk accepted" decision of
 [ADR-0003](0003-chave-publica-publicada-como-oraculo-offline.md), the `info` layout of
@@ -49,7 +49,7 @@ preceded this ADR and shape the design below.
 | Input | Secret | Canonical form |
 |---|---|---|
 | `master` | yes | NFC. No trimming, no case change. Non-empty. C0 controls and U+007F rejected |
-| `boost` | yes | NFC, trimmed, runs of whitespace collapsed to one U+0020, ASCII `A–Z` lowered. Non-empty |
+| `boost` | yes | NFC, trimmed, runs of whitespace collapsed to one U+0020, **diacritics removed** (below), ASCII `A–Z` lowered. Non-empty |
 | `user_id` | no | NFC, trimmed, ASCII `A–Z` lowered. Non-empty. An e-mail address is recommended |
 | `site` | no | See below |
 | `login` | no | NFC, trimmed, ASCII `A–Z` lowered. Empty means "absent" |
@@ -61,6 +61,16 @@ preceded this ADR and shape the design below.
 memorised. It replaces the temporal secret as a *secret*; `counter` replaces it as a *version*.
 The lowering and whitespace rules exist because phone keyboards capitalise the first word and
 double-space freely.
+
+**Diacritics in the boost.** After NFC, trimming and whitespace collapsing, the boost is
+decomposed (NFD), every code point in the block **U+0300–U+036F** (Combining Diacritical
+Marks, listed explicitly in the code) is removed, and the result is recomposed (NFC). Only then
+are ASCII letters lowered, so `ÁGUA` and `agua` are the same boost. `país`/`pais` and
+`açucar`/`acucar` therefore give the same boost, which matches the bundled list: it is
+deduplicated after accent stripping, so a user who types the accent out of habit, or whose
+keyboard autocorrects one in, must not get different passwords. Marks outside that block and
+letters with no decomposition (`ø`, `ß`) are left alone. A boost that is empty after this step
+is rejected. This applies to the boost only: the master password keeps its accents.
 
 "Trimmed" and "whitespace" mean the Unicode `White_Space` set, listed explicitly in the code
 so it does not depend on the runtime. After trimming, every input rejects any remaining C0
@@ -199,17 +209,36 @@ journal_id = 16 random bytes, fixed at --init
 DEK        = 32 random bytes, fixed at --init
 
 access slot  (in keys.pw3, synced):
-    KEK_a = Argon2id(LP(access_password), salt_a, m, t, p, taglen=32)
-    slot  = m, t, p, salt_a(32), nonce(12), AES-256-GCM(KEK_a, nonce, DEK, aad)
-    aad   = "PW3S" || U8(1) || journal_id || "access" || m || t || p || salt_a
+    KEK_a = Argon2id(password=LP(access_password), salt=salt_a, m, t, p,
+                     taglen=32, version=0x13, secret=∅, ad=∅)
+    slot  = U32(m) || U32(t) || U32(p) || salt_a(32) || nonce(12)
+            || AES-256-GCM(KEK_a, nonce, DEK, aad)            # 32 + 16 bytes
+    aad   = "PW3S" || U8(1) || journal_id || "access"
+            || U32(m) || U32(t) || U32(p) || salt_a
+
+keys.pw3 = "PW3S" || U8(1) || journal_id(16) || slot           # 125 bytes in all
+
+    offset   0   4  "PW3S"
+             4   1  format version (1)
+             5  16  journal_id
+            21   4  m, memory in KiB     U32 big-endian
+            25   4  t, passes            U32 big-endian
+            29   4  p, lanes            U32 big-endian
+            33  32  salt_a
+            65  12  nonce
+            77  48  ciphertext (32) || GCM tag (16)
+
+    "access" in the aad is the six ASCII bytes, with no length prefix.
 
 recovery wrap (printed once, NOT stored by default):
     KEK_r = OKM(PRK["none"], "journal-recovery", extra=journal_id, 32)
     file  = "PW3R" || U8(1) || journal_id || LP(ALG) || nonce(12) || AES-256-GCM(KEK_r, nonce, DEK, aad=preceding bytes)
 ```
 
-The access slot's Argon2id parameters are stored in the slot, default the same as §3. They are
-*not* frozen: `--change-access-password` rewrites the slot with new parameters and the same DEK.
+`m`, `t` and `p` are each a 32-bit big-endian unsigned integer, both in the slot and in the
+aad, in that order. A reader must refuse a slot outside `8·p ≤ m ≤ 4 GiB`, `1 ≤ t ≤ 64`,
+`1 ≤ p ≤ 64` before allocating anything. The access slot's Argon2id parameters are stored in
+the slot, default the same as §3. They are *not* frozen: `--change-access-password` rewrites the slot with new parameters and the same DEK.
 `--init` refuses an access password equal to `master` or `boost`.
 
 **Where the oracle is, stated plainly.** The synced journal is an offline oracle for the
@@ -468,10 +497,17 @@ must be treated as exposed and **not reused as the v3 master**.
 | `--audit`, `--view-log`, `--view-list`, `--encrypt-list` | `--list`, `--show SITE`, `--history [SITE]`, `--edit SITE`, `--resolve SITE`, `--import-list FILE`: **access password only** |
 | – | `--change-access-password`, `--recover` (open the journal with the recovery text or file), `--keep-recovery-file` |
 | `-o/--output` (7 CSV formats) | `--export-kdbx FILE` |
-| `--mass-rekey` | same, over the journal, output to `.kdbx` |
+| `--mass-rekey` | same, over the journal, output to `.kdbx`; issues a new recovery text (below) |
 | `--fido2`, `--fido2-register` | removed |
 | `--gen-keyfile --recoverable`, raw keyfiles | removed |
 | `-V v2` | `--migrate-v2`, `--v2-show SITE` (read-only) |
+
+**`--mass-rekey` and the recovery text.** `KEK_r` is derived from `master + boost`, so after
+a rekey the recovery text issued earlier does not open with the new secrets. `--mass-rekey`
+therefore prints a **new** recovery text (Base32 and QR) wrapped under the new secrets, and
+warns that the previously printed one **still opens the journal with the old master and
+boost**: the DEK did not change. The old printout must be destroyed. The same holds for a
+`recovery.pw3` kept on disk, which is replaced.
 
 Length and class flags are unchanged, but when the journal has an entry for the site its
 values win and a differing flag is an error unless `--force`. The canonical site and the
@@ -503,7 +539,8 @@ against Wycheproof, plus a chi-square test on the sampler.
 - **Changing the access password does not revoke the old one.** The DEK is fixed, so any
   earlier copy of `keys.pw3` (Syncthing file versioning, a backup, another device that has
   not synced yet) still opens the journal with the old password, including records written
-  later. Revocation needs DEK rotation, which is out of scope for v3.0.
+  later. Revocation needs DEK rotation, which is out of scope for v3.0. For the same reason
+  a recovery text issued before `--mass-rekey` keeps working with the old secrets.
 - There are now three secrets to remember. The access password is the low-value one: losing
   it is recoverable, and leaking it exposes metadata and notes, not passwords.
 - The Android app in v3.0 is derivation-only. Reading a Syncthing-replicated journal on the
@@ -524,4 +561,6 @@ against Wycheproof, plus a chi-square test on the sampler.
 Resolved in revision 2: non-ASCII sites are rejected; FIDO2 is removed; the 16-bit verifier
 is removed in favour of the fingerprint alone. Resolved in revision 3: the recovery wrap is
 printed once and kept on disk only with an explicit flag. Resolved in revision 4: `m` is
-frozen at 262144 KiB after the on-device benchmark (§9).
+frozen at 262144 KiB after the on-device benchmark (§9). Revision 5: diacritics are removed
+from the boost; the access slot's field widths are stated; `--mass-rekey` reissues the
+recovery text.

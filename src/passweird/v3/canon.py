@@ -23,6 +23,10 @@ WHITESPACE = frozenset(
     "    　"
 )
 
+# Combining Diacritical Marks, U+0300..U+036F: the whole block and nothing
+# else. Removed from the boost only (see boost()).
+COMBINING_DIACRITICS = frozenset(chr(c) for c in range(0x0300, 0x0370))
+
 _ASCII_LOWER = {c: c + 32 for c in range(ord("A"), ord("Z") + 1)}
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*://")
 _PORT = re.compile(r":[0-9]*$")
@@ -44,6 +48,13 @@ def _trim(value):
     while end > start and value[end - 1] in WHITESPACE:
         end -= 1
     return value[start:end]
+
+
+def _strip_diacritics(value):
+    """NFD, drop U+0300..U+036F, NFC. Marks outside that block and letters
+    without a decomposition (ø, ß) are left as they are."""
+    decomposed = unicodedata.normalize("NFD", value)
+    return unicodedata.normalize("NFC", "".join(ch for ch in decomposed if ch not in COMBINING_DIACRITICS))
 
 
 def _ascii_lower(value):
@@ -83,9 +94,13 @@ def access_password(value):
 
 def boost(value):
     """
-    NFC, trimmed, whitespace runs collapsed, ASCII letters lowered. Phone
-    keyboards capitalise the first word and double-space freely; neither may
-    change every password the user owns.
+    NFC, trimmed, whitespace runs collapsed, diacritics removed, ASCII letters
+    lowered. Phone keyboards capitalise the first word, double-space freely and
+    autocorrect accents in; none of that may change every password the user
+    owns. The bundled word list is deduplicated after accent stripping, so
+    "pais" and "país" have to be the same boost.
+
+    Diacritics go BEFORE the lowering: "ÁGUA" must become "agua", not "Agua".
     """
     value = unicodedata.normalize("NFC", _text("boost", value))
     words, current = [], []
@@ -98,7 +113,7 @@ def boost(value):
             current.append(ch)
     if current:
         words.append("".join(current))
-    return _check("boost", _ascii_lower(" ".join(words)))
+    return _check("boost", _ascii_lower(_strip_diacritics(" ".join(words))))
 
 
 def user_id(value):

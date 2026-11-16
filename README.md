@@ -145,7 +145,7 @@ differ are an error unless `--force`.
 | `--recover [--recovery-file PATH]` | Lost access password: reopen the journal with the recovery text |
 | `--print-recovery`, `--keep-recovery-file` | Issue the recovery text again; store it on this device |
 | `--export-kdbx FILE` | Export passwords (all, or `SITE`) to a new KeePass database |
-| `--mass-rekey --export-kdbx FILE` | New master/boost: old and new password of every site |
+| `--mass-rekey --export-kdbx FILE` | New master/boost: old and new password of every site. Prints a new recovery text; the old printout still works with the old secrets and must be destroyed |
 | `--secrets-stdin` | Read every prompt from standard input, for automation |
 
 ### Export to a password manager

@@ -29,6 +29,11 @@
   8287,
   12288
  ],
+ "boost_removed_codepoints": {
+  "first": 768,
+  "last": 879,
+  "count": 112
+ },
  "cases": [
   {
    "field": "master",
@@ -158,15 +163,84 @@
   },
   {
    "field": "boost",
+   "input": "país",
+   "note": "diacritics are removed: same boost as the next case",
+   "expected": "pais"
+  },
+  {
+   "field": "boost",
+   "input": "pais",
+   "expected": "pais"
+  },
+  {
+   "field": "boost",
+   "input": "açucar",
+   "note": "cedilla is U+0327, inside the removed block",
+   "expected": "acucar"
+  },
+  {
+   "field": "boost",
+   "input": "acucar",
+   "expected": "acucar"
+  },
+  {
+   "field": "boost",
+   "input": "açúcar coração avó avô maçã pão",
+   "note": "acute, tilde, circumflex, cedilla",
+   "expected": "acucar coracao avo avo maca pao"
+  },
+  {
+   "field": "boost",
+   "input": "acucar coracao avo avo maca pao",
+   "expected": "acucar coracao avo avo maca pao"
+  },
+  {
+   "field": "boost",
    "input": "ÁGUA É Vida",
-   "note": "only ASCII letters are lowered",
-   "expected": "Água É vida"
+   "note": "marks go before the lowering, so this is 'agua e vida'",
+   "expected": "agua e vida"
   },
   {
    "field": "boost",
    "input": "aguá",
-   "note": "NFC applied",
-   "expected": "aguá"
+   "note": "a mark typed as a separate code point",
+   "expected": "agua"
+  },
+  {
+   "field": "boost",
+   "input": "ÃO",
+   "note": "decomposed input",
+   "expected": "ao"
+  },
+  {
+   "field": "boost",
+   "input": "ǘ ệ",
+   "note": "several marks on one letter are all removed",
+   "expected": "u e"
+  },
+  {
+   "field": "boost",
+   "input": "smørrebrød straße",
+   "note": "no decomposition: kept, and not lowered beyond ASCII",
+   "expected": "smørrebrød straße"
+  },
+  {
+   "field": "boost",
+   "input": "a᪰b",
+   "note": "a combining mark outside U+0300-U+036F is kept",
+   "expected": "a᪰b"
+  },
+  {
+   "field": "boost",
+   "input": "̧́",
+   "note": "only marks: empty after removal",
+   "reject": true
+  },
+  {
+   "field": "boost",
+   "input": " ́ ",
+   "note": "a lone mark between spaces: empty after removal",
+   "reject": true
   },
   {
    "field": "boost",

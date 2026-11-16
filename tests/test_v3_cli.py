@@ -514,6 +514,27 @@ def test_mass_rekey(ready, cli, tmp_path):
     assert result.value("New fingerprint:") != ready.value("Fingerprint:")
     assert cli(["--mass-rekey"], secrets=SECRETS).code == 1
 
+    # A new recovery text is printed for the new secrets, with the warning that
+    # the old printout still opens with the old ones.
+    assert "still opens the journal" in result.out and "Destroy it" in result.out
+    new_blob, old_blob = keys.recovery_from_text(result.recovery_text), keys.recovery_from_text(ready.recovery_text)
+    assert new_blob != old_blob
+    with derive.Session.open(new_master, new_boost, USER) as new_session, \
+            derive.Session.open(MASTER, BOOST, USER) as old_session:
+        dek = keys.open_recovery(new_blob, new_session.prk_none)[1]
+        assert keys.open_recovery(old_blob, old_session.prk_none)[1] == dek      # the documented limit
+        with pytest.raises(keys.WrongSecret):
+            keys.open_recovery(old_blob, new_session.prk_none)
+        with pytest.raises(keys.WrongSecret):
+            keys.open_recovery(new_blob, old_session.prk_none)
+
+
+def test_accented_boost_is_the_same_boost(ready, cli):
+    plain = cli(["github.com", "--no-journal"], secrets=[MASTER, "pais acucar coracao avo pao"])
+    accented = cli(["github.com", "--no-journal"], secrets=[MASTER, "País Açúcar coração avó pão"])
+    assert plain.password == accented.password
+    assert plain.value("Fingerprint:") == accented.value("Fingerprint:")
+
 
 # --- one run with the real KDFs ----------------------------------------------
 

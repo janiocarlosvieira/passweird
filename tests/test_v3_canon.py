@@ -63,6 +63,36 @@ def test_phone_keyboard_spelling_reaches_the_same_boost():
     assert canon.boost("Cavalo  Bateria grampo ") == canon.boost("cavalo bateria grampo")
 
 
+@pytest.mark.parametrize("accented, plain", [
+    ("país", "pais"), ("açucar", "acucar"), ("açúcar", "acucar"), ("coração", "coracao"),
+    ("avó", "avo"), ("avô", "avo"), ("ÁGUA", "agua"), ("Pão  De  Açúcar", "pao de acucar"),
+    ("café", "cafe"),
+])
+def test_boost_ignores_diacritics(accented, plain):
+    assert canon.boost(accented) == canon.boost(plain) == plain
+
+
+def test_boost_removes_exactly_the_combining_diacritical_marks_block():
+    assert sorted(ord(ch) for ch in canon.COMBINING_DIACRITICS) == list(range(0x0300, 0x0370))
+    info = VECTORS["boost_removed_codepoints"]
+    assert (info["first"], info["last"], info["count"]) == (0x0300, 0x036F, 112)
+    assert canon.boost("a᪰b") == "a᪰b"          # a mark outside the block stays
+    assert canon.boost("smørrebrød") == "smørrebrød"       # no decomposition: untouched
+    with pytest.raises(canon.CanonicalError):
+        canon.boost("́")
+
+
+def test_diacritics_are_removed_from_the_boost_only():
+    assert canon.master("país") == "país"
+    assert canon.user_id("josé@exemplo.br") == "josé@exemplo.br"
+    assert canon.login("José") == "josé"
+
+
+def test_every_word_of_the_bundled_list_is_its_own_canonical_boost():
+    from passweird.v3 import wordlist
+    assert all(canon.boost(word) == word for word in wordlist.words())
+
+
 def test_nfd_and_nfc_master_are_the_same_secret():
     assert canon.master("café") == canon.master("café")
 

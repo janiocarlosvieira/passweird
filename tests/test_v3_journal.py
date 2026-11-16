@@ -30,7 +30,10 @@ def test_access_slot_vectors(case):
     assert keys.open_keys_file(data, case["access_password"]) == (JOURNAL_ID, DEK)
     a = case["argon2"]
     params = (a["memory_kib"], a["time_cost"], a["parallelism"])
-    assert int.from_bytes(data[21:25], "big") == a["memory_kib"]
+    # Layout stated in ADR-0009 §6: m, t and p are U32 big-endian at 21, 25 and 29.
+    assert len(data) == 125 and data[:5] == b"PW3S\x01" and data[5:21] == JOURNAL_ID
+    assert [int.from_bytes(data[o:o + 4], "big") for o in (21, 25, 29)] == \
+        [a["memory_kib"], a["time_cost"], a["parallelism"]]
     salt = data[33:65]
     assert keys.access_kek(case["access_password"], salt, params).hex() == case["kek_hex"]
     assert keys.build_keys_file(JOURNAL_ID, DEK, case["access_password"], params, salt, data[65:77]) == data

@@ -809,7 +809,10 @@ def cmd_mass_rekey(args, prompter):
                 raise CliError("the journal has no entries to rekey")
             _write_kdbx(args.export_kdbx, prompter, entries)
             blob = keys.build_recovery(book.journal_id, book.dek, new.prk_none)
-            say("The previous recovery text no longer matches the new secrets.")
+            say("")
+            say("A NEW recovery text follows, for the new master password and boost.")
+            say("WARNING: the recovery text printed before still opens the journal with the")
+            say("OLD master password and boost (the journal key did not change). Destroy it.")
             print_recovery(blob)
             if os.path.exists(recovery_path()) or args.keep_recovery_file:
                 store_recovery(blob)
