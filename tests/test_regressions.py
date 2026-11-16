@@ -2,10 +2,14 @@
 Dedicated regression tests for the two live bugs found in the pre-refactor
 audit: (B1) main.py used hashlib without importing it on the --key-file path,
 (B2) crypto.py used datetime.UTC, which doesn't exist before Python 3.11.
+
+These cover the v2 engine (passweird.crypto / passweird.storage), kept only to
+read old files during migration. The v2 command line itself is gone; its
+end-to-end case for B1 went with it.
 """
 import os
 import sys
-from passweird import crypto, main, storage
+from passweird import crypto, storage
 
 
 from cryptography import x509
@@ -20,19 +24,6 @@ def test_b1_keyfile_path_does_not_raise_nameerror(tmp_path, monkeypatch):
     # NameError: name 'hashlib' is not defined.
     master_hash = crypto.modified_hash("master", keyfile_path=str(keyfile))
     assert isinstance(master_hash, str) and len(master_hash) == 64
-
-
-def test_b1_cli_key_file_end_to_end(tmp_path, monkeypatch, capsys):
-    keyfile = tmp_path / "second-factor.key"
-    keyfile.write_bytes(b"physical factor bytes")
-
-    inputs = iter(["mymasterpass"])
-    monkeypatch.setattr("getpass.getpass", lambda prompt="": next(inputs))
-    monkeypatch.setattr(sys, "argv", ["main.py", "testapp", "--key-file", str(keyfile), "-T", ""])
-
-    main.main()
-    out = capsys.readouterr().out
-    assert "Error" not in out
 
 
 def test_b2_ssl_generation_does_not_raise_attributeerror():
