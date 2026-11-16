@@ -429,9 +429,12 @@ password, then:
    by recomputing each context's `app:` summary; a match recovers the last `len`/`feat` for
    that site. Unmatched records are counted and reported.
 3. Optionally writes v2 password → v3 password per site into a `.kdbx` (two entries per site).
-4. Rewraps a v2 keyfile under the v3 wrap key.
-5. Deletes `master.hash`, `hosts.enc`, the v2 log, `fido2.cred` and old CSV exports **after**
-   the stream is written and re-read successfully.
+4. Uses a v2 keyfile (`--v2-key-file`) only to read the v2 data. It is not carried over: a v3
+   keyfile is exactly 32 random bytes and every password changes anyway, so a new one is
+   created with `--gen-keyfile`.
+5. Lists `master.hash`, `hosts.enc`, the v2 log, `fido2.cred` and old CSV exports and, on
+   confirmation, deletes them, **after** the stream is written and re-read successfully.
+   `--keep-v2-files` skips the question.
 
 v2 passwords generated with `--fido2` cannot be reproduced by the migration.
 

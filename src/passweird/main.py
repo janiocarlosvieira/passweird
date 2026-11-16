@@ -6,7 +6,7 @@
 import argparse
 import sys
 
-from .v3 import app
+from .v3 import app, migrate
 
 EPILOG = """\
 secrets are always prompted (hidden) and never accepted as arguments:
@@ -93,6 +93,15 @@ def build_parser():
                           help="new master/boost: old and new password of every entry into --export-kdbx FILE")
     recovery.add_argument("--new-key-file", metavar="PATH", help="with --mass-rekey: keyfile for the new secrets")
 
+    legacy = parser.add_argument_group("migration from v2 (read-only)")
+    legacy.add_argument("--migrate-v2", action="store_true",
+                        help="import the v2 site list and settings into the journal")
+    legacy.add_argument("--v2-show", metavar="CONTEXT",
+                        help="show the password v2 generated for a context (honours -L and the class flags)")
+    legacy.add_argument("--v2-key-file", metavar="PATH", help="v2 keyfile, if the v2 data was made with one")
+    legacy.add_argument("--keep-v2-files", action="store_true",
+                        help="with --migrate-v2: do not offer to delete the v2 files")
+
     parser.add_argument("--secrets-stdin", action="store_true",
                         help="read every prompt from standard input, one per line (automation)")
     return parser
@@ -129,6 +138,10 @@ def dispatch(args, prompter):
         return app.cmd_recover(args, prompter)
     if args.print_recovery:
         return app.cmd_print_recovery(args, prompter)
+    if args.migrate_v2:
+        return migrate.cmd_migrate_v2(args, prompter)
+    if args.v2_show:
+        return migrate.cmd_v2_show(args, prompter)
     if args.mass_rekey:
         return app.cmd_mass_rekey(args, prompter)
     if args.export_kdbx:
