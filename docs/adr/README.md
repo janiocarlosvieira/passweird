@@ -14,6 +14,7 @@ superseded by a new ADR.
 | [0006](0006-formato-do-log-e-deteccao-por-registro.md) | Log format and per-record detection | Accepted |
 | [0007](0007-verificacao-de-senha-contra-o-log.md) | Password verification against the log | Proposed |
 | [0008](0008-kotlin-multiplatform-port.md) | Kotlin Multiplatform port | Proposed |
+| [0009](0009-v3-key-stretching-and-derivation.md) | v3: memory-hard stretching, canonical inputs and a tiered, syncable journal | Accepted |
 
 The execution plan for the proposed ADRs is in
 [`../PLANO-DE-ACAO.md`](../PLANO-DE-ACAO.md).
