@@ -321,7 +321,7 @@ for v3.0.
 ### 8. Second factor
 
 **Keyfile only**: 32 random bytes, stored as
-`"PW3F" || nonce || AES-256-GCM(keyfile-wrap key)`. It can be copied to every device and to a
+`"PW3F" || U8(1) || nonce || AES-256-GCM(keyfile-wrap key)`. It can be copied to every device and to a
 backup, so it does not break regeneration. `--gen-keyfile` refuses to overwrite. Arbitrary
 files as keyfiles and `--recoverable` are removed: the latter was a second memorised secret,
 which is now `boost`.

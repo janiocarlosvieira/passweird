@@ -1,0 +1,1385 @@
+{
+ "format_version": 1,
+ "spec": "ADR-0009 §6-§7",
+ "journal_id_hex": "101112131415161718191a1b1c1d1e1f",
+ "dek_hex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+ "prk_none_from_fixed_k0_hex": "2cf50f2ed175008d896502ec61e0b6b39aa8a36e605a61bb6e7ab2278bb439e79868f77ed3345ea6fa7faf1677390975d88965bc00cba361073afab229750df5",
+ "access_slot": [
+  {
+   "label": "small-parameters",
+   "access_password": "abre o diário",
+   "argon2": {
+    "memory_kib": 1024,
+    "time_cost": 1,
+    "parallelism": 1
+   },
+   "kek_hex": "ae11587ebfa32b52f1a919e60dab41af322914575869733c512b45a44b8a219f",
+   "keys_file_hex": "5057335301101112131415161718191a1b1c1d1e1f000004000000000100000001808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fc0c1c2c3c4c5c6c7c8c9cacbe4eb7279ee51be581110088ba5e8ad9218eefe5f9cbb1db2d1ff856dd679bfeb62fb33067a844564016363f23c082ed9"
+  },
+  {
+   "label": "default-parameters",
+   "access_password": "abre o diário",
+   "argon2": {
+    "memory_kib": 262144,
+    "time_cost": 3,
+    "parallelism": 4
+   },
+   "kek_hex": "db2fa64048346c28ca6cd2037027f8aa781cbeca06ce0bf78b72dada5fcc239e",
+   "keys_file_hex": "5057335301101112131415161718191a1b1c1d1e1f000400000000000300000004808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fc0c1c2c3c4c5c6c7c8c9cacb1cda58b6a659e3c7112b27976c3534e0cd1fe981c6806c772c6e050bc440c4a2d1d938ab1d2102c8fed9bd0b6d52f2f4"
+  }
+ ],
+ "recovery": {
+  "kek_hex": "9dc3bbb5ebe3cde480d0f69f8469ccf912adc29d43c322bdace0bd19c4eff3f2",
+  "blob_hex": "5057335201101112131415161718191a1b1c1d1e1f00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132c0c1c2c3c4c5c6c7c8c9cacbc9b190638e17cdafedc6cb8bcea991d79e69ec9a75741c4e534d557595df5fba16dfe1d8961e5ffafef02c4f6dad69d6",
+  "text": "KBLT GUQB CAIR EEYU CULB OGAZ DINR YHI6\nD4AD G4DB ONZX OZLJ OJSC 25RT F5QX EZ3P\nNYZG SZBN OYYT SLLN GI3D EMJU GQWX IMZN\nOA2C 62DL MRTC 243I ME2T CMWA YHBM HRGF\nY3D4 RSOK ZPE3 DEDD RYL4 3L7N Y3FY XTVJ\nSHLZ 42PM TJ2X IHCO KNGV K5MV 35P3 UFW7\n4HMJ MHS7 7L7P ALCP NWWW TVQ"
+ },
+ "keyfile": {
+  "wrap_key_hex": "7b30495f62756e7d83b739dfb2c05ead343643f2dbfd4709db8276aee0e58755",
+  "factor_hex": "6465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80818283",
+  "file_hex": "5057334601c0c1c2c3c4c5c6c7c8c9cacb54fa1c357e89f562354c0f3eb4993a40f041b7e1e5c588576fec6b115deb2f7015fc2a607f5d8df97a874ba37860d14c"
+ },
+ "stream": {
+  "device_id_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "stream_key_hex": "ec9087afbcb4557446878aba65341bf413cfb4767a5c364e7482df0143852a94",
+  "nonces_hex": [
+   "010101010101010101010101",
+   "020202020202020202020202",
+   "030303030303030303030303"
+  ],
+  "records": [
+   {
+    "v": 1,
+    "ts": 1700000000000,
+    "op": "put",
+    "site": "example.org",
+    "login": "",
+    "counter": 1,
+    "length": 18,
+    "classes": 15,
+    "parents": [],
+    "notes": "conta principal",
+    "totp": "Aegis no celular",
+    "keys": [
+     "YubiKey 5C azul",
+     "reserva no cofre"
+    ],
+    "x": {
+     "origem": "v2"
+    }
+   },
+   {
+    "v": 1,
+    "ts": 1700000000500,
+    "op": "put",
+    "site": "example.org",
+    "login": "",
+    "counter": 2,
+    "length": 18,
+    "classes": 15,
+    "parents": [
+     [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      0
+     ]
+    ],
+    "notes": "ção ✓ nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+    "totp": "",
+    "keys": [],
+    "x": {}
+   },
+   {
+    "v": 1,
+    "ts": 1700000001000,
+    "op": "delete",
+    "site": "example.org",
+    "login": "",
+    "parents": [
+     [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      1
+     ]
+    ]
+   }
+  ],
+  "plaintexts_hex": [
+   "7b22636c6173736573223a31352c22636f756e746572223a312c226b657973223a5b22597562694b657920354320617a756c222c2272657365727661206e6f20636f667265225d2c226c656e677468223a31382c226c6f67696e223a22222c226e6f746573223a22636f6e7461207072696e636970616c222c226f70223a22707574222c22706172656e7473223a5b5d2c2273697465223a226578616d706c652e6f7267222c22746f7470223a224165676973206e6f2063656c756c6172222c227473223a313730303030303030303030302c2276223a312c2278223a7b226f726967656d223a227632227d7d00000000000000000000000000000000000000",
+   "7b22636c6173736573223a31352c22636f756e746572223a322c226b657973223a5b5d2c226c656e677468223a31382c226c6f67696e223a22222c226e6f746573223a22c3a7c3a36f20e29c93206e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e222c226f70223a22707574222c22706172656e7473223a5b5b226161616161616161616161616161616161616161616161616161616161616161222c305d5d2c2273697465223a226578616d706c652e6f7267222c22746f7470223a22222c227473223a313730303030303030303530302c2276223a312c2278223a7b7d7d00000000000000",
+   "7b226c6f67696e223a22222c226f70223a2264656c657465222c22706172656e7473223a5b5b226161616161616161616161616161616161616161616161616161616161616161222c315d5d2c2273697465223a226578616d706c652e6f7267222c227473223a313730303030303030313030302c2276223a317d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "file_hex": "5057334a01101112131415161718191a1b1c1d1e1faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000011c01010101010101010101010122daa6179c78f979bcd477742fedbb3286d159f5549f172ee04da099dca72523917214a3defe5115a7a7dda1ea13ec1733f84000cebd1ced7fe9c3b3900fa59279abb84fd31e022e9557a8177d176cce3fdb693b7f0cd9386a52f347473d862ec33b9b35f574315eefd067ad655305c7a3f0b716213aac3dc8e87826ece5d51201122780219f3feb35412c3ba792607fc4d276a93a01dedb22d5de39a9f4ede1c930cc771851213f482598155c668a37c7e85f14e96c13b23441a2e0b0942609d7bb0db83b490ce33304c423102488cfc2f4971e9813c6681de4d41f88c004fc728e840a8e143d5e2b82c5d8b43d56c114ce836ca8c20f7d374d428a6a3a442cba5b641580dc7dd3eadb2c92850d62ad0000021c02020202020202020202020232cde0f6c198e0a23a782efaf7a625361e1f8b89cd1367d0716aa933a15295058c76a689afb5952b01343027705233e321267c44ccb7e28a0fdfef80dd2972f7d45d60738a70157c3fec8ff1da635de4a9356414dd954b6014d877bb8d3a7a48e9ac5f454c17ee65c1ad1e8d5535a5ba92bfd1964e7e1310e4473b1e58fd7b378ef226a5d8e59523b52f3870fd8827fd82ef9f6474d32654e9cd6c96b9f2ff9434ee74083e0273e0c59d4ffae29173df6709b55bac5447834fc8fd0f73f492efa480514e47f6177b40416b926a09ab5c021f46dd5c3cdd3ef19564fab5c1545d5296f728941dc2b3e0966974c2fd1f5c9995e3f8c7dffef920622a2e73208bdc3688133c5beb4ce2603d18dd63941251c0bf73c5b5095ee6de4f8e3ee536bca6928d26e818beddab20920862b2cebebb1b615446b645ab50415af93d7f9e2e02a921ce48b4cfed1f965c937e14e83128556db96d96479ab270cefbf02c62699d31d5df17d0657fa269fdf835c6e0a6f3723dde01358650255a25349427ee3565d86f7539f3afbf84a989a39ce737c8326a97d1126894cbd14564383fe1f25e266cbe56ea81a4f012b51833d5391b798a282c4152bc446012c3bd1e0c9835fb4d313f93ea2093c15a1e94bb4904297c44f5c257baef38e2e0131902ce7d8e46b5ecb717d47e6629db85e1130b664c4ffcffcb9b67200faa3efeb8f64d15ba86a51a372133b3fe218efcfac5694ae8b6520000011c030303030303030303030303d9c8534c24dad7d6a17b3c35804a72ad14c68b37085dca91356c2f609d5c439693b5704454d6b80bf1817359242fa1772a0e2160b7812b32da014c1015a46e88817e98f5032d8b97723c88ebca6c893617b1d6319e4b7ab23d48e8185f4cb85af315696c3c43229227d0f89ec1bffb55f27d943b47c1680501fffdbf5654f1a0272cb57bef1dcdcd8bfe791aeca20edc4f641f7b268ee41711aee47103f140dbe65a28cb1be8a55c42cdd03418024a9eb8b1dd242f0c9cec71fd0410ba95698934575a8691c8bafef1f1574c5faee0402735498ee9c414238cc56d1bbe13b663f9f538ede73b51fd5c4238cdeafd67f0c7da99dcec4fb75a30f01bef19bea2d75be0d9544b28f619531c2ca69cb98de1"
+ },
+ "next_timestamp": [
+  {
+   "now_ms": 1000,
+   "highest_seen": null,
+   "expected": 1000
+  },
+  {
+   "now_ms": 1000,
+   "highest_seen": 500,
+   "expected": 1000
+  },
+  {
+   "now_ms": 1000,
+   "highest_seen": 1000,
+   "expected": 1001
+  },
+  {
+   "now_ms": 5,
+   "highest_seen": 1000000,
+   "expected": 1000001
+  },
+  {
+   "now_ms": 1000,
+   "highest_seen": 999,
+   "expected": 1000
+  }
+ ],
+ "merge": [
+  {
+   "name": "linear-single-device",
+   "why": "one device, each record lists the previous one",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 2,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 2,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        1
+       ]
+      ],
+      "notes": "trocada em março",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 2,
+     "length": 18,
+     "classes": 15,
+     "notes": "trocada em março",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       2
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "identical-concurrent-bump",
+   "why": "both devices go 3 -> 4 offline: same password, nothing to resolve",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 210,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 4,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "divergent-bump",
+   "why": "A went to 5, B to 4, B wrote last: counter is the maximum and the entry is in conflict",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 5,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        1
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 400,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "escrito por B",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 5,
+     "length": 18,
+     "classes": 15,
+     "notes": "escrito por B",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": true,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       2
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": [
+      {
+       "counter": 5,
+       "length": 18,
+       "classes": 15,
+       "device": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "ts": 300
+      },
+      {
+       "counter": 4,
+       "length": 18,
+       "classes": 15,
+       "device": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "ts": 400
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "divergent-bump-resolved",
+   "why": "a record listing both heads clears the conflict",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 5,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        1
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 400,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 4,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "cccccccccccccccccccccccccccccccc": [
+     {
+      "v": 1,
+      "ts": 500,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 5,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        2
+       ],
+       [
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 5,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "cccccccccccccccccccccccccccccccc",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "concurrent-length-change",
+   "why": "same counter, different length: derivation differs, so it is a conflict",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 20,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 250,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 16,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 3,
+     "length": 16,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": true,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": [
+      {
+       "counter": 3,
+       "length": 20,
+       "classes": 15,
+       "device": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "ts": 200
+      },
+      {
+       "counter": 3,
+       "length": 16,
+       "classes": 15,
+       "device": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "ts": 250
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "concurrent-notes-only",
+   "why": "free-form fields differ: last writer wins, no conflict",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "nota de A",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 250,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "nota de B",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 3,
+     "length": 18,
+     "classes": 15,
+     "notes": "nota de B",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "timestamp-tie",
+   "why": "equal ts: device id, then seq, breaks the tie",
+   "streams": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "B vence o empate",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ],
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "A perde o empate",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 1,
+     "length": 18,
+     "classes": 15,
+     "notes": "B vence o empate",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       0
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "deleted",
+   "why": "a deleted entry keeps its counter as a floor",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 2,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "delete",
+      "site": "example.org",
+      "login": "",
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        1
+       ]
+      ]
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 2,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": true,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       2
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "delete-then-recreate",
+   "why": "re-creating with counter 1 does not go back to a retired password",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "delete",
+      "site": "example.org",
+      "login": "",
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        1
+       ]
+      ]
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 400,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        2
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 3,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "concurrent-delete-and-edit",
+   "why": "the later record decides whether the entry exists",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 200,
+      "op": "delete",
+      "site": "example.org",
+      "login": "",
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ]
+     }
+    ],
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 300,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 3,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+       ]
+      ],
+      "notes": "ainda em uso",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 3,
+     "length": 18,
+     "classes": 15,
+     "notes": "ainda em uso",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ],
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "logins-are-separate-entries",
+   "why": "same site, different login",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "put",
+      "site": "example.org",
+      "login": "fulano",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 110,
+      "op": "put",
+      "site": "example.org",
+      "login": "beltrano",
+      "counter": 7,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     },
+     {
+      "v": 1,
+      "ts": 120,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 1,
+      "length": 18,
+      "classes": 15,
+      "parents": [],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 1,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       2
+      ]
+     ],
+     "candidates": []
+    },
+    {
+     "site": "example.org",
+     "login": "beltrano",
+     "counter": 7,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       1
+      ]
+     ],
+     "candidates": []
+    },
+    {
+     "site": "example.org",
+     "login": "fulano",
+     "counter": 1,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "parent-in-a-stream-not-yet-synced",
+   "why": "an unknown parent is not an error",
+   "streams": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": [
+     {
+      "v": 1,
+      "ts": 400,
+      "op": "put",
+      "site": "example.org",
+      "login": "",
+      "counter": 2,
+      "length": 18,
+      "classes": 15,
+      "parents": [
+       [
+        "cccccccccccccccccccccccccccccccc",
+        9
+       ]
+      ],
+      "notes": "",
+      "totp": "",
+      "keys": [],
+      "x": {}
+     }
+    ]
+   },
+   "expected": [
+    {
+     "site": "example.org",
+     "login": "",
+     "counter": 2,
+     "length": 18,
+     "classes": 15,
+     "notes": "",
+     "totp": "",
+     "keys": [],
+     "x": {},
+     "deleted": false,
+     "conflict": false,
+     "heads": [
+      [
+       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       0
+      ]
+     ],
+     "candidates": []
+    }
+   ]
+  },
+  {
+   "name": "delete-without-a-put",
+   "why": "a delete for an entry never seen created yields nothing",
+   "streams": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+     {
+      "v": 1,
+      "ts": 100,
+      "op": "delete",
+      "site": "example.org",
+      "login": "",
+      "parents": []
+     }
+    ]
+   },
+   "expected": []
+  }
+ ],
+ "integrity": [
+  {
+   "name": "first-run",
+   "lengths": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2
+   },
+   "seen": {},
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "ok"
+  },
+  {
+   "name": "in-sync",
+   "lengths": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "seen": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "ok"
+  },
+  {
+   "name": "other-device-advanced",
+   "lengths": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 5,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "seen": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "ok"
+  },
+  {
+   "name": "stream-shrank",
+   "lengths": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 1,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "seen": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "rollback"
+  },
+  {
+   "name": "stream-vanished",
+   "lengths": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "seen": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2,
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "rollback"
+  },
+  {
+   "name": "own-stream-shrank",
+   "lengths": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 0
+   },
+   "seen": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "rollback"
+  },
+  {
+   "name": "cloned-install",
+   "lengths": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 3
+   },
+   "seen": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": false,
+   "expected": "clone"
+  },
+  {
+   "name": "interrupted-own-write",
+   "lengths": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 2
+   },
+   "seen": {
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": 1
+   },
+   "own": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "own_write_pending_matches": true,
+   "expected": "ok"
+  }
+ ]
+}

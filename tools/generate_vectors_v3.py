@@ -18,7 +18,7 @@ import json
 import pathlib
 import sys
 
-from passweird.v3 import canon, derive
+from passweird.v3 import canon, derive, journal, keys
 
 OUTPUT_DIR = pathlib.Path(__file__).resolve().parent.parent / "tests" / "vectors" / "v3"
 FORMAT_VERSION = 1
@@ -316,9 +316,174 @@ def build_derivation():
     }
 
 
+# --- §6-§7: key hierarchy, streams and merge ---------------------------------
+
+DEV_A, DEV_B, DEV_C = "aa" * 16, "bb" * 16, "cc" * 16
+JOURNAL_ID = bytes(range(0x10, 0x20))
+DEK = bytes(range(0x40, 0x60))
+
+
+def _put(ts, counter=1, length=18, classes=15, parents=(), site="example.org", login="", **free):
+    return journal.make_put(ts, site, login, counter, length, classes, parents,
+                            free.get("notes", ""), free.get("totp", ""), free.get("keys", ()), free.get("x"))
+
+
+def _del(ts, parents=(), site="example.org", login=""):
+    return journal.make_delete(ts, site, login, parents)
+
+
+def _scenario(name, why, streams):
+    records = []
+    for device, items in streams.items():
+        for seq, record in enumerate(items):
+            records.append(dict(record, device=device, seq=seq))
+    folded = journal.fold(records)
+    return {
+        "name": name, "why": why, "streams": streams,
+        "expected": [folded[key].as_dict() for key in sorted(folded)],
+    }
+
+
+def build_journal():
+    prk_none = derive.extract(FIXED_K0)
+    small = (1024, 1, 1)
+    salt, nonce = bytes(range(0x80, 0xA0)), bytes(range(0xC0, 0xCC))
+    keys_small = keys.build_keys_file(JOURNAL_ID, DEK, "abre o diário", small, salt, nonce)
+    keys_default = keys.build_keys_file(JOURNAL_ID, DEK, "abre o diário", keys.DEFAULT_ACCESS_PARAMS, salt, nonce)
+    recovery = keys.build_recovery(JOURNAL_ID, DEK, prk_none, nonce)
+    keyfile = keys.build_keyfile(prk_none, FIXED_KEYFILE, nonce)
+
+    stream_records = [
+        _put(1_700_000_000_000, notes="conta principal", totp="Aegis no celular",
+             keys=["YubiKey 5C azul", "reserva no cofre"], x={"origem": "v2"}),
+        _put(1_700_000_000_500, counter=2, parents=[[DEV_A, 0]], notes="ção ✓ " + "n" * 300),
+        _del(1_700_000_001_000, parents=[[DEV_A, 1]]),
+    ]
+    stream_nonces = [bytes([i]) * 12 for i in (1, 2, 3)]
+    stream = journal.build_stream(DEK, JOURNAL_ID, bytes.fromhex(DEV_A), stream_records, stream_nonces)
+
+    a0 = _put(100, counter=3)
+    scenarios = [
+        _scenario("linear-single-device", "one device, each record lists the previous one", {
+            DEV_A: [_put(100), _put(200, counter=2, parents=[[DEV_A, 0]]),
+                    _put(300, counter=2, parents=[[DEV_A, 1]], notes="trocada em março")],
+        }),
+        _scenario("identical-concurrent-bump",
+                  "both devices go 3 -> 4 offline: same password, nothing to resolve", {
+            DEV_A: [a0, _put(200, counter=4, parents=[[DEV_A, 0]])],
+            DEV_B: [_put(210, counter=4, parents=[[DEV_A, 0]])],
+        }),
+        _scenario("divergent-bump",
+                  "A went to 5, B to 4, B wrote last: counter is the maximum and the entry is in conflict", {
+            DEV_A: [a0, _put(200, counter=4, parents=[[DEV_A, 0]]), _put(300, counter=5, parents=[[DEV_A, 1]])],
+            DEV_B: [_put(400, counter=4, parents=[[DEV_A, 0]], notes="escrito por B")],
+        }),
+        _scenario("divergent-bump-resolved", "a record listing both heads clears the conflict", {
+            DEV_A: [a0, _put(200, counter=4, parents=[[DEV_A, 0]]), _put(300, counter=5, parents=[[DEV_A, 1]])],
+            DEV_B: [_put(400, counter=4, parents=[[DEV_A, 0]])],
+            DEV_C: [_put(500, counter=5, parents=[[DEV_A, 2], [DEV_B, 0]])],
+        }),
+        _scenario("concurrent-length-change",
+                  "same counter, different length: derivation differs, so it is a conflict", {
+            DEV_A: [a0, _put(200, counter=3, length=20, parents=[[DEV_A, 0]])],
+            DEV_B: [_put(250, counter=3, length=16, parents=[[DEV_A, 0]])],
+        }),
+        _scenario("concurrent-notes-only", "free-form fields differ: last writer wins, no conflict", {
+            DEV_A: [a0, _put(200, counter=3, parents=[[DEV_A, 0]], notes="nota de A")],
+            DEV_B: [_put(250, counter=3, parents=[[DEV_A, 0]], notes="nota de B")],
+        }),
+        _scenario("timestamp-tie", "equal ts: device id, then seq, breaks the tie", {
+            DEV_B: [_put(100, notes="B vence o empate")],
+            DEV_A: [_put(100, notes="A perde o empate")],
+        }),
+        _scenario("deleted", "a deleted entry keeps its counter as a floor", {
+            DEV_A: [_put(100), _put(200, counter=2, parents=[[DEV_A, 0]]), _del(300, parents=[[DEV_A, 1]])],
+        }),
+        _scenario("delete-then-recreate", "re-creating with counter 1 does not go back to a retired password", {
+            DEV_A: [_put(100), _put(200, counter=3, parents=[[DEV_A, 0]]), _del(300, parents=[[DEV_A, 1]])],
+            DEV_B: [_put(400, counter=1, parents=[[DEV_A, 2]])],
+        }),
+        _scenario("concurrent-delete-and-edit", "the later record decides whether the entry exists", {
+            DEV_A: [a0, _del(200, parents=[[DEV_A, 0]])],
+            DEV_B: [_put(300, counter=3, parents=[[DEV_A, 0]], notes="ainda em uso")],
+        }),
+        _scenario("logins-are-separate-entries", "same site, different login", {
+            DEV_A: [_put(100, login="fulano"), _put(110, login="beltrano", counter=7), _put(120)],
+        }),
+        _scenario("parent-in-a-stream-not-yet-synced", "an unknown parent is not an error", {
+            DEV_B: [_put(400, counter=2, parents=[[DEV_C, 9]])],
+        }),
+        _scenario("delete-without-a-put", "a delete for an entry never seen created yields nothing", {
+            DEV_A: [_del(100)],
+        }),
+    ]
+
+    integrity = []
+    for name, lengths, seen, own, pending_ok in [
+        ("first-run", {DEV_A: 2}, {}, DEV_B, False),
+        ("in-sync", {DEV_A: 2, DEV_B: 1}, {DEV_A: 2, DEV_B: 1}, DEV_B, False),
+        ("other-device-advanced", {DEV_A: 5, DEV_B: 1}, {DEV_A: 2, DEV_B: 1}, DEV_B, False),
+        ("stream-shrank", {DEV_A: 1, DEV_B: 1}, {DEV_A: 2, DEV_B: 1}, DEV_B, False),
+        ("stream-vanished", {DEV_B: 1}, {DEV_A: 2, DEV_B: 1}, DEV_B, False),
+        ("own-stream-shrank", {DEV_B: 0}, {DEV_B: 1}, DEV_B, False),
+        ("cloned-install", {DEV_B: 3}, {DEV_B: 1}, DEV_B, False),
+        ("interrupted-own-write", {DEV_B: 2}, {DEV_B: 1}, DEV_B, True),
+    ]:
+        try:
+            outcome = journal.check_integrity(lengths, seen, own, pending_ok) or "ok"
+        except journal.JournalError as exc:
+            outcome = exc.code
+        integrity.append({"name": name, "lengths": lengths, "seen": seen, "own": own,
+                          "own_write_pending_matches": pending_ok, "expected": outcome})
+
+    return {
+        "format_version": FORMAT_VERSION,
+        "spec": "ADR-0009 §6-§7",
+        "journal_id_hex": JOURNAL_ID.hex(),
+        "dek_hex": DEK.hex(),
+        "prk_none_from_fixed_k0_hex": bytes(prk_none).hex(),
+        "access_slot": [
+            {"label": "small-parameters", "access_password": "abre o diário",
+             "argon2": {"memory_kib": small[0], "time_cost": small[1], "parallelism": small[2]},
+             "kek_hex": keys.access_kek("abre o diário", salt, small).hex(),
+             "keys_file_hex": keys_small.hex()},
+            {"label": "default-parameters", "access_password": "abre o diário",
+             "argon2": dict(zip(("memory_kib", "time_cost", "parallelism"), keys.DEFAULT_ACCESS_PARAMS)),
+             "kek_hex": keys.access_kek("abre o diário", salt, keys.DEFAULT_ACCESS_PARAMS).hex(),
+             "keys_file_hex": keys_default.hex()},
+        ],
+        "recovery": {
+            "kek_hex": keys.recovery_kek(prk_none, JOURNAL_ID).hex(),
+            "blob_hex": recovery.hex(),
+            "text": keys.recovery_to_text(recovery),
+        },
+        "keyfile": {
+            "wrap_key_hex": keys.keyfile_wrap_key(prk_none).hex(),
+            "factor_hex": FIXED_KEYFILE.hex(),
+            "file_hex": keyfile.hex(),
+        },
+        "stream": {
+            "device_id_hex": DEV_A,
+            "stream_key_hex": journal.stream_key(DEK, JOURNAL_ID, bytes.fromhex(DEV_A)).hex(),
+            "nonces_hex": [n.hex() for n in stream_nonces],
+            "records": stream_records,
+            "plaintexts_hex": [journal.encode_record(r).hex() for r in stream_records],
+            "file_hex": stream.hex(),
+        },
+        "next_timestamp": [
+            {"now_ms": now, "highest_seen": seen, "expected":
+                journal.next_timestamp(now, [{"ts": seen}] if seen is not None else [])}
+            for now, seen in [(1000, None), (1000, 500), (1000, 1000), (5, 1_000_000), (1000, 999)]
+        ],
+        "merge": scenarios,
+        "integrity": integrity,
+    }
+
+
 BUILDERS = {
     "canonical.json": build_canonical,
     "derivation.json": build_derivation,
+    "journal.json": build_journal,
 }
 
 

@@ -14,6 +14,7 @@ python tools/generate_vectors_v3.py --check    # fail if stale (CI)
 |---|---|
 | `canonical.json` | §1: canonical form of every input, with the inputs that must be **rejected** |
 | `derivation.json` | §2–§5: encoding, Argon2id, extract, every HKDF purpose, password sampling |
+| `journal.json` | §6–§7: access slot, recovery wrap, keyfile, an encrypted stream, **merge scenarios** and integrity outcomes |
 
 ## What a port must get right
 
@@ -33,6 +34,11 @@ on these numbers is consuming the stream differently and will diverge on another
 
 **A rejected candidate does not restart the stream.** The next candidate continues from the
 current position.
+
+**The merge is a pure function.** Each scenario in `journal.json` gives streams of plaintext
+records and the folded state; `seq` is the position in the stream. The result must not depend
+on the order in which streams are read. Counter is the maximum over every `put`; a conflict
+is more than one `put` head differing in counter, length or classes.
 
 ## Checks that do not come from this code
 
