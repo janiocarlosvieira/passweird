@@ -24,8 +24,9 @@ implementation. Accepting an input Python rejects creates a password only that p
 **Only ASCII letters are lowered**, and whitespace is the explicit code point list in
 `canonical.json`, not the platform's idea of whitespace.
 
-**The boost loses its diacritics, and only the boost.** NFD, drop exactly U+0300–U+036F, NFC,
-*then* lower ASCII letters: `ÁGUA` is `agua`. A mark outside that block and a letter with no
+**The boost loses its diacritics, and only the boost.** Right after the first NFC: NFD, drop
+exactly U+0300–U+036F, NFC. *Then* trim and collapse whitespace, *then* lower ASCII letters:
+`ÁGUA` is `agua`, and `a ◌́ b` (a lone mark between spaces) is `a b` with one space. A mark outside that block and a letter with no
 decomposition (`ø`) are kept. The master password, user id and login keep their accents.
 
 **Three full-cost Argon2id cases, the rest starts from `fixed_k0_hex`.** A port runs 256 MiB

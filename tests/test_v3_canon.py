@@ -1,4 +1,6 @@
 # ADR-0009 §1 - canonical form of every input.
+import random
+
 import pytest
 
 from passweird.v3 import canon
@@ -128,3 +130,75 @@ def test_classes_from_flags():
     assert canon.classes_from_flags(lower=False, upper=False, specials=False) == canon.CLASS_DIGITS
     with pytest.raises(canon.CanonicalError):
         canon.classes_from_flags(False, False, False, False)
+
+
+# --- property: the canonical form is a fixed point ---------------------------
+#
+# canon(canon(x)) == canon(x) for every input of §1. A stored value (a site in
+# the journal, a user id in the configuration) is canonicalised again whenever
+# it is read, so a form that is not its own canonical form would silently
+# rename it. The inputs are generated from a fixed seed, so a failure is
+# reproducible, and the alphabet is built from exactly the characters the rules
+# treat specially.
+
+_HOSTILE = (
+    list("abzAZ019") + list("áÁçÇãõéñüøßİıſK")                         # letters, incl. K = Kelvin sign
+    + ["́", "̧", "̃", "̈", "ͯ", "̀"]      # marks inside the removed block
+    + ["᪰", "⃐", "゙", "҃"]                          # combining marks outside it
+    + sorted(canon.WHITESPACE)
+    + ["​", "﻿", "­"]                                    # invisible, but not whitespace
+    + list(".-_:/?#@[]!%") + ["www.", "://", "https://", "xn--", ":443", "www"]
+    + ["ａ", "Ａ", "．", "／", "：", "＠", "ﬁ", "㎏", "①"]               # NFKC-sensitive
+    + ["\u0000", "\u001f", "\u007f"]                                    # controls
+    + ["é", "É", "Å", "ç", "ẛ̣"]      # decomposed sequences
+)
+
+_TEXT_FIELDS = [canon.master, canon.access_password, canon.boost, canon.user_id, canon.login, canon.site]
+
+
+def _generated(seed, count=4000):
+    rng = random.Random(seed)
+    for _ in range(count):
+        yield "".join(rng.choice(_HOSTILE) for _ in range(rng.randint(0, 12)))
+
+
+@pytest.mark.parametrize("function", _TEXT_FIELDS, ids=lambda f: f.__name__)
+def test_canonical_form_is_a_fixed_point_for_generated_inputs(function):
+    accepted = 0
+    for value in _generated(f"fixed-point-{function.__name__}"):
+        try:
+            once = function(value)
+        except canon.CanonicalError:
+            continue
+        accepted += 1
+        assert function(once) == once, f"{function.__name__}({value!r}) = {once!r} is not a fixed point"
+    assert accepted > 50, "the generator must produce inputs this field accepts"
+
+
+@pytest.mark.parametrize("function", _TEXT_FIELDS, ids=lambda f: f.__name__)
+def test_canonical_form_is_a_fixed_point_for_every_vector_input(function):
+    for case in VECTORS["cases"]:
+        if FUNCTIONS.get(case["field"]) is not function or case.get("reject"):
+            continue
+        once = function(_input(case))
+        assert function(once) == once
+
+
+def test_integer_inputs_are_fixed_points():
+    for value in (1, 2, 2**32 - 1):
+        assert canon.counter(canon.counter(value)) == canon.counter(value)
+    for mask in range(1, 16):
+        assert canon.classes(canon.classes(mask)) == mask
+        for size in (6, 8, 18, 128):
+            try:
+                once = canon.length(size, mask)
+            except canon.CanonicalError:
+                continue
+            assert canon.length(once, mask) == once
+
+
+def test_fixed_point_regression_lone_mark_between_spaces():
+    """The case that motivated stripping marks before collapsing whitespace."""
+    assert canon.boost("a ́ b") == "a b"
+    assert canon.boost(canon.boost("a ́ b")) == "a b"
+    assert canon.boost("́ pais ́") == "pais"

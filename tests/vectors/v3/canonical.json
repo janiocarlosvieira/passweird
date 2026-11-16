@@ -244,6 +244,24 @@
   },
   {
    "field": "boost",
+   "input": "a ́ b",
+   "note": "a lone mark between words leaves ONE space: marks go before the collapse",
+   "expected": "a b"
+  },
+  {
+   "field": "boost",
+   "input": "á ̧ ́b̃",
+   "note": "marks on both sides of the gap",
+   "expected": "a b"
+  },
+  {
+   "field": "boost",
+   "input": "́ pais ́",
+   "note": "marks at the ends do not shield the spaces from trimming",
+   "expected": "pais"
+  },
+  {
+   "field": "boost",
    "input": "   \t  ",
    "reject": true
   },

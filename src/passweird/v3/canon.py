@@ -94,15 +94,20 @@ def access_password(value):
 
 def boost(value):
     """
-    NFC, trimmed, whitespace runs collapsed, diacritics removed, ASCII letters
+    NFC, diacritics removed, trimmed, whitespace runs collapsed, ASCII letters
     lowered. Phone keyboards capitalise the first word, double-space freely and
     autocorrect accents in; none of that may change every password the user
     owns. The bundled word list is deduplicated after accent stripping, so
     "pais" and "país" have to be the same boost.
 
-    Diacritics go BEFORE the lowering: "ÁGUA" must become "agua", not "Agua".
+    The order matters twice:
+      - diacritics go BEFORE trimming and collapsing. A mark standing alone
+        between two spaces ("a \u0301 b") would otherwise survive the collapse
+        as a word, then vanish and leave two spaces behind: a result that is
+        not its own canonical form.
+      - diacritics go BEFORE the lowering: "ÁGUA" must become "agua", not "Agua".
     """
-    value = unicodedata.normalize("NFC", _text("boost", value))
+    value = _strip_diacritics(unicodedata.normalize("NFC", _text("boost", value)))
     words, current = [], []
     for ch in value:
         if ch in WHITESPACE:
@@ -113,7 +118,7 @@ def boost(value):
             current.append(ch)
     if current:
         words.append("".join(current))
-    return _check("boost", _ascii_lower(_strip_diacritics(" ".join(words))))
+    return _check("boost", _ascii_lower(" ".join(words)))
 
 
 def user_id(value):

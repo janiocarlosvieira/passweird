@@ -49,7 +49,7 @@ preceded this ADR and shape the design below.
 | Input | Secret | Canonical form |
 |---|---|---|
 | `master` | yes | NFC. No trimming, no case change. Non-empty. C0 controls and U+007F rejected |
-| `boost` | yes | NFC, trimmed, runs of whitespace collapsed to one U+0020, **diacritics removed** (below), ASCII `A–Z` lowered. Non-empty |
+| `boost` | yes | NFC, **diacritics removed** (below), trimmed, runs of whitespace collapsed to one U+0020, ASCII `A–Z` lowered. Non-empty |
 | `user_id` | no | NFC, trimmed, ASCII `A–Z` lowered. Non-empty. An e-mail address is recommended |
 | `site` | no | See below |
 | `login` | no | NFC, trimmed, ASCII `A–Z` lowered. Empty means "absent" |
@@ -62,10 +62,12 @@ memorised. It replaces the temporal secret as a *secret*; `counter` replaces it 
 The lowering and whitespace rules exist because phone keyboards capitalise the first word and
 double-space freely.
 
-**Diacritics in the boost.** After NFC, trimming and whitespace collapsing, the boost is
-decomposed (NFD), every code point in the block **U+0300–U+036F** (Combining Diacritical
-Marks, listed explicitly in the code) is removed, and the result is recomposed (NFC). Only then
-are ASCII letters lowered, so `ÁGUA` and `agua` are the same boost. `país`/`pais` and
+**Diacritics in the boost.** After NFC, the boost is decomposed (NFD), every code point in
+the block **U+0300–U+036F** (Combining Diacritical Marks, listed explicitly in the code) is
+removed, and the result is recomposed (NFC). Trimming and whitespace collapsing come after
+that, and ASCII lowering last, so `ÁGUA` and `agua` are the same boost. Removing the marks
+first is what keeps the form a fixed point: a mark standing alone between two spaces would
+otherwise outlive the collapse and leave a double space behind. `país`/`pais` and
 `açucar`/`acucar` therefore give the same boost, which matches the bundled list: it is
 deduplicated after accent stripping, so a user who types the accent out of habit, or whose
 keyboard autocorrects one in, must not get different passwords. Marks outside that block and
