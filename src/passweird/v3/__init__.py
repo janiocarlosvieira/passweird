@@ -3,6 +3,8 @@
 """
 Implementation of docs/adr/0009. Section numbers in comments refer to that ADR.
 
-Nothing in this package imports the v2 modules (passweird.crypto,
-passweird.storage); those remain only to read old files during migration.
+The v2 modules (passweird.crypto, passweird.storage) remain to read old files
+during migration. v3 uses them in exactly two places: artifacts.py reuses the
+SSH/TLS/OpenPGP format builders, and migrate.py reads v2 data. No v2
+derivation feeds any v3 output.
 """

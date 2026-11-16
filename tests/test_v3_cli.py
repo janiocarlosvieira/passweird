@@ -523,3 +523,24 @@ def test_real_argon2_end_to_end(cli):
     with derive.Session.open(MASTER, BOOST, USER) as session:
         assert result.password == session.password("github.com", "fulano")
         assert result.value("Fingerprint:") == session.fingerprint
+
+
+# --- key material ------------------------------------------------------------
+
+def test_ssh_and_ssl_from_the_cli_are_reproducible_and_recorded(ready, cli):
+    first = cli(["host.example", "--ssh"], secrets=SECRETS)
+    assert first.code == 0 and "ssh-ed25519 " in first.out and "BEGIN OPENSSH PRIVATE KEY" in first.out
+    assert "Journal updated." in first.out and "Password:" not in first.out
+    second = cli(["host.example", "--ssh"], secrets=SECRETS)
+    assert second.out.split("[SSH public key]")[1] == first.out.split("[SSH public key]")[1].replace(
+        "Journal updated.\n", "")
+    rotated = cli(["host.example", "--ssh", "-C", "2"], secrets=SECRETS)
+    assert rotated.out.split("[SSH public key]")[1].split("\n")[1] != first.out.split("[SSH public key]")[1].split("\n")[1]
+    cert = cli(["host.example", "--ssl"], secrets=SECRETS)
+    assert "BEGIN CERTIFICATE" in cert.out and "BEGIN PRIVATE KEY" in cert.out
+    assert cli(["host.example", "--ssh", "--bump"], secrets=SECRETS).code == 1
+
+
+def test_bad_rsa_size_fails_before_any_prompt(ready, cli):
+    result = cli(["host.example", "--rsa", "1024"], secrets=SECRETS)
+    assert result.code == 2 and result.asked == []

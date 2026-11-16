@@ -217,6 +217,20 @@ def generate_deterministic_ssh_key(master_hash, app_hash, temporal_salt=""):
     info = f"{app_hash}:ssh_seed:{temporal_salt}".encode()
     seed = hkdf_expand(prk, info, 32)
 
+    # Own label rather than info + b":checkint": temporal_salt is user-controlled free
+    # text and sits at the end of info, so appending a literal suffix after it makes the
+    # encoding ambiguous — a salt of "X:checkint" would derive its key from exactly the
+    # bytes that a salt of "X" derives its checkint from. See _derive_prime for the
+    # general rule: nothing is ever appended after the salt.
+    checkint = hkdf_expand(prk, f"{app_hash}:ssh_checkint:{temporal_salt}".encode(), 4)
+    return openssh_keypair_from_seed(seed, checkint)
+
+def openssh_keypair_from_seed(seed, checkint):
+    """
+    Assembles the OpenSSH key pair for a 32-byte Ed25519 seed and a 4-byte
+    checkint. Pure formatting, shared by the v2 and v3 engines; how the two
+    inputs are derived is each engine's business.
+    """
     private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
     public_key = private_key.public_key()
     pub_bytes = public_key.public_bytes(
@@ -224,13 +238,6 @@ def generate_deterministic_ssh_key(master_hash, app_hash, temporal_salt=""):
     )
 
     pubkey_blob = _ssh_string(b"ssh-ed25519") + _ssh_string(pub_bytes)
-
-    # Own label rather than info + b":checkint": temporal_salt is user-controlled free
-    # text and sits at the end of info, so appending a literal suffix after it makes the
-    # encoding ambiguous — a salt of "X:checkint" would derive its key from exactly the
-    # bytes that a salt of "X" derives its checkint from. See _derive_prime for the
-    # general rule: nothing is ever appended after the salt.
-    checkint = hkdf_expand(prk, f"{app_hash}:ssh_checkint:{temporal_salt}".encode(), 4)
     privkey_blob = (
         checkint + checkint
         + _ssh_string(b"ssh-ed25519")
@@ -349,10 +356,20 @@ def _derive_prime(prk, label, bits, avoid=None):
     over-samples primes that follow large gaps. FIPS 186-5 B.3.3 forbids it, and
     measurements showed no speed advantage anyway.
     """
+    return derive_prime_from_candidates(
+        lambda counter: hkdf_expand(prk, label + b":%d" % counter, bits // 8), bits, avoid
+    )
+
+def derive_prime_from_candidates(candidate_bytes, bits, avoid=None):
+    """
+    The rejection loop of _derive_prime with the candidate source factored out:
+    candidate_bytes(counter) returns bits // 8 fresh bytes. Shared by the v2 and
+    v3 engines, which differ only in how those bytes are derived.
+    """
     counter = 0
     min_distance = 1 << (bits - 100)
     while True:
-        raw = hkdf_expand(prk, label + b":%d" % counter, bits // 8)
+        raw = candidate_bytes(counter)
         counter += 1
         candidate = int.from_bytes(raw, "big")
         # Top two bits: guarantee p*q lands on the full requested bit length.
@@ -403,6 +420,10 @@ def generate_deterministic_rsa_key(master_hash, app_hash, rsa_bits=2048, tempora
 
     p = _derive_prime(prk, base_info + b":p", half)
     q = _derive_prime(prk, base_info + b":q", half, avoid=p)
+    return rsa_key_from_primes(p, q, rsa_bits)
+
+def rsa_key_from_primes(p, q, rsa_bits):
+    """Assembles and self-checks an RSA private key from two derived primes."""
     if p < q:
         p, q = q, p
 
@@ -441,7 +462,20 @@ def generate_ssl_certificate(master_hash, app_hash, domain_context, use_rsa=Fals
     else:
         seed = hkdf_expand(prk, info, 32)
         private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
-        
+
+    # Own label rather than info + b":serial": temporal_salt is user-controlled and ends
+    # info, so a literal suffix after it is ambiguous. With the old encoding, a salt of
+    # "X:serial" produced a private key whose first 19 bytes were exactly the serial
+    # number published in the certificate generated with a salt of "X" — 152 of the 256
+    # private seed bits, readable by anyone holding that certificate.
+    serial_seed = hkdf_expand(prk, f"{app_hash}:ssl_serial:{temporal_salt}".encode(), 19)
+    return self_signed_certificate(private_key, domain_context, serial_seed, use_rsa)
+
+def self_signed_certificate(private_key, domain_context, serial_seed, use_rsa=False):
+    """
+    Builds the self-signed certificate for an already-derived private key and
+    19 serial bytes. Pure formatting, shared by the v2 and v3 engines.
+    """
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, domain_context),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Passweird Self-Signed CA"),
@@ -461,13 +495,6 @@ def generate_ssl_certificate(master_hash, app_hash, domain_context, use_rsa=Fals
     # Deterministic serial number (derived from the same seed material) so the
     # certificate is reproducible run-to-run for the Ed25519 path; x509.random_serial_number()
     # would silently break determinism despite the key material being reproducible.
-    #
-    # Own label rather than info + b":serial": temporal_salt is user-controlled and ends
-    # info, so a literal suffix after it is ambiguous. With the old encoding, a salt of
-    # "X:serial" produced a private key whose first 19 bytes were exactly the serial
-    # number published in the certificate generated with a salt of "X" — 152 of the 256
-    # private seed bits, readable by anyone holding that certificate.
-    serial_seed = hkdf_expand(prk, f"{app_hash}:ssl_serial:{temporal_salt}".encode(), 19)
     serial_number = int.from_bytes(serial_seed, "big") | 1
 
     cert = x509.CertificateBuilder().subject_name(
@@ -563,12 +590,6 @@ def generate_deterministic_pgp_key(master_hash, app_hash, temporal_salt="", uid=
     info = f"{app_hash}:pgp_seed:{temporal_salt}".encode()
     seed = hkdf_expand(prk, info, 32)
 
-    private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
-    public_key = private_key.public_key()
-    pubkey_bytes = public_key.public_bytes(
-        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-    )
-
     # Deterministic creation time, derived from the same seed material rather than
     # wall-clock "now" (the fingerprint/Key ID are computed over this timestamp too).
     # Own label, not info + b":ctime" — see the checkint note in
@@ -579,10 +600,21 @@ def generate_deterministic_pgp_key(master_hash, app_hash, temporal_salt="", uid=
     # refuses to import those ("failed to re-lookup public key"). The window cannot
     # follow the wall clock either: the timestamp is hashed into the fingerprint and
     # Key ID, so a drifting bound would silently change the key's identity over time.
-    creation_time = _PGP_CTIME_EPOCH + (
-        int.from_bytes(hkdf_expand(prk, f"{app_hash}:pgp_ctime:{temporal_salt}".encode(), 4), "big")
-        % _PGP_CTIME_RANGE
+    ctime_bytes = hkdf_expand(prk, f"{app_hash}:pgp_ctime:{temporal_salt}".encode(), 4)
+    return pgp_packets_from_seed(seed, ctime_bytes, uid)
+
+def pgp_packets_from_seed(seed, ctime_bytes, uid):
+    """
+    Assembles the OpenPGP packets for a 32-byte Ed25519 seed and 4 bytes that
+    are mapped into the fixed creation-time window. Pure formatting, shared by
+    the v2 and v3 engines.
+    """
+    private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+    public_key = private_key.public_key()
+    pubkey_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
     )
+    creation_time = _PGP_CTIME_EPOCH + (int.from_bytes(ctime_bytes, "big") % _PGP_CTIME_RANGE)
 
     pubkey_body = (
         bytes([4]) + creation_time.to_bytes(4, "big") + bytes([22])

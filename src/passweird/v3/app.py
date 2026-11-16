@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-from . import canon, derive, fileio, journal, kdbx, keys, wordlist
+from . import artifacts, canon, derive, fileio, journal, kdbx, keys, wordlist
 
 CONFIG_VERSION = 1
 DEFAULT_LENGTH = 18
@@ -436,10 +436,14 @@ def cmd_generate(args, prompter):
         except canon.CanonicalError as exc:
             raise CliError(str(exc)) from None
 
-        if args.totp:
-            return _show_totp(session, site, login, counter)
+        artifact = args.totp or args.ssh or args.ssl or args.rsa is not None or args.pgp
+        if artifact and args.bump:
+            raise CliError("--bump rotates a password; for key material use -C N")
 
-        if args.bump:
+        if artifact:
+            say(f"Counter: {counter}")
+            _show_artifact(args, session, site, login, counter)
+        elif args.bump:
             if counter >= canon.MAX_COUNTER:
                 raise CliError("counter is already at its maximum")
             say(f"Current password (counter {counter}): "
@@ -466,6 +470,43 @@ def cmd_generate(args, prompter):
                 say("Journal updated.")
     finally:
         session.close()
+
+
+def _show_artifact(args, session, site, login, counter):
+    if args.totp:
+        return _show_totp(session, site, login, counter)
+    if args.ssh:
+        private, public = artifacts.ssh_keypair(session.prk, site, login, counter)
+        say("[SSH public key]")
+        say(public)
+        say("[SSH private key (OpenSSH)]")
+        say(private)
+        return
+    if args.ssl or args.rsa is not None:
+        if args.rsa is not None and args.rsa >= 4096:
+            say("Deriving RSA primes, this may take a few seconds...")
+        try:
+            private, certificate = artifacts.tls_certificate(session.prk, site, login, counter, args.rsa)
+        except ValueError as exc:
+            raise CliError(str(exc)) from None
+        say("[Certificate (PEM)]")
+        say(certificate)
+        say("[Private key (PEM)]")
+        say(private)
+        return
+    from .. import crypto
+    try:
+        public, private, fingerprint = crypto.export_pgp_key_armored(
+            artifacts.pgp_packets(session.prk, site, login, counter))
+    except ImportError:
+        raise CliError("--pgp needs the optional dependency: pip install 'passweird[pgp]'") from None
+    except (OSError, ValueError) as exc:
+        raise CliError(f"--pgp needs a working gpg binary: {exc}") from None
+    say(f"[OpenPGP fingerprint] {fingerprint}")
+    say("[OpenPGP public key]")
+    say(public)
+    say("[OpenPGP private key]")
+    say(private)
 
 
 def _show_totp(session, site, login, counter):

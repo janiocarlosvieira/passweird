@@ -49,6 +49,11 @@ def build_parser():
     derivation.add_argument("--user-id", help="user id (salt); needed only without a configuration")
     derivation.add_argument("--key-file", metavar="PATH", help="keyfile to use as a second factor")
     derivation.add_argument("--totp", action="store_true", help="derive a TOTP secret for the site instead")
+    derivation.add_argument("--ssh", action="store_true", help="derive an Ed25519 SSH key pair instead")
+    derivation.add_argument("--ssl", action="store_true", help="derive a self-signed TLS certificate (Ed25519) instead")
+    derivation.add_argument("--rsa", type=int, default=None, metavar="BITS",
+                            help="like --ssl with an RSA key of BITS (>= 2048, multiple of 16)")
+    derivation.add_argument("--pgp", action="store_true", help="derive an OpenPGP key pair instead")
 
     setup = parser.add_argument_group("setup")
     setup.add_argument("--gen-boost", nargs="?", type=int, const=5, default=None, metavar="N",
@@ -132,7 +137,11 @@ def dispatch(args, prompter):
 
 
 def main():
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    # Checked before any prompt, so a bad value does not cost a typed secret.
+    if args.rsa is not None and (args.rsa < 2048 or args.rsa % 16 != 0):
+        parser.error(f"--rsa must be at least 2048 and a multiple of 16 (got {args.rsa})")
     prompter = app.Prompter(from_stdin=args.secrets_stdin)
     try:
         dispatch(args, prompter)
