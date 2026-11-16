@@ -1,6 +1,6 @@
 # ADR-0009 — v3: memory-hard stretching, canonical inputs and a tiered, syncable journal
 
-**Status:** Accepted (revision 5)
+**Status:** Accepted (revision 6)
 **Date:** 2026-11-16
 **Supersedes (when accepted):** the "risk accepted" decision of
 [ADR-0003](0003-chave-publica-publicada-como-oraculo-offline.md), the `info` layout of
@@ -515,6 +515,124 @@ Length and class flags are unchanged, but when the journal has an entry for the 
 values win and a differing flag is an error unless `--force`. The canonical site and the
 fingerprint are printed before the password.
 
+### 13. Interoperability details
+
+Everything a second implementation needs that the sections above leave implicit. Nothing here
+changes behaviour: it writes down what the Python code and the vectors already do. Where a
+statement here is narrower than the section it refers to, this one is the precise form.
+
+**13.1 Access password (§1).** It has a canonical form like every other input:
+
+| Input | Secret | Canonical form |
+|---|---|---|
+| `access_password` | yes | NFC. No trimming, no case change. Non-empty. C0 controls and U+007F rejected |
+
+That is the rule of `master`. As for every text input, the canonical form is at most 65535
+bytes of UTF-8, the limit of `LP`. `KEK_a` is computed over `LP` of this form (§6).
+
+**13.2 Fingerprint (§6).** The 3 bytes of `OKM(PRK["none"], "fingerprint", 3)` are read as one
+24-bit big-endian integer and cut into four 6-bit groups, most significant group first. In
+each group the high 4 bits index the consonant in `bdfghjklmnprstvz` and the low 2 bits index
+the vowel in `aeio`. The output is syllables 1 and 2, a hyphen (U+002D), syllables 3 and 4,
+all lower case.
+
+```
+bytes A1 B2 C3 = 101000 011011 001011 000011
+                 p+a    k+o    f+o    b+o      ->  pako-fobo
+```
+
+**13.3 Stream key (§7).** `K_stream` uses HKDF (RFC 5869) with **HMAC-SHA512** for both steps,
+the same hash as §4:
+
+```
+PRK_j    = HMAC-SHA512(key=journal_id, msg=DEK)                       # Extract
+K_stream = first 32 bytes of
+           HMAC-SHA512(key=PRK_j, msg=LP("PW3J/stream") || device_id || 0x01)   # Expand, one block
+```
+
+`device_id` is the 16 raw bytes, with no length prefix.
+
+**13.4 Record framing (§7).** In `record = U32(len) || nonce || ciphertext || tag`, `len`
+counts everything after the length field itself: **nonce (12) + ciphertext + GCM tag (16)**.
+A reader refuses a record whose `len` is below 28, above 2²⁰, or runs past the end of the
+file. Records follow the 37-byte header with nothing between or after them.
+
+**13.5 Record plaintext (§6).** The JSON is serialised so that equal records give equal
+bytes:
+
+- object keys in ascending order of Unicode code point, at every nesting level (the `x` map
+  included);
+- no whitespace: `,` and `:` are the only separators;
+- UTF-8, with non-ASCII characters written literally, not as `\uXXXX`;
+- only what JSON requires is escaped: `\"`, `\\`, and U+0000–U+001F as `\b \t \n \f \r` or
+  `\u00xx` with lower-case hex. `/` and U+007F are not escaped;
+- integers in decimal, no fraction or exponent.
+
+A `put` always carries all thirteen keys of §6; a `delete` carries exactly `v`, `ts`, `op`,
+`site`, `login`, `parents`. The serialised bytes are followed by zero bytes up to the next
+multiple of 256 (none if the length is already a multiple). A reader strips trailing zero
+bytes, parses, and rejects a record whose `site` or `login` is not already in canonical form
+or whose `counter`, `length` or `classes` is out of range; it never repairs one. On reading, a
+`put` without `notes`, `totp`, `keys` or `x` takes `""`, `""`, `[]` and `{}`. A device id
+inside `parents` is 32 lower-case hex digits. The plaintext is authenticated, so the exact
+bytes matter only for reproducing the vectors, not for reading another implementation's
+records.
+
+**13.6 Merge (§7).** For one `(site, login)`, with its records in `(ts, device_id, seq)`
+order (`device_id` compared as lower-case hex text):
+
+- A group with **no `put`** yields no entry at all. This is a `delete` whose `put` the reader
+  has not received.
+- Rule 2 precisely: every field other than `counter` comes from the **last `put`**. A deleted
+  entry therefore keeps the fields of its last `put`. `deleted` is true exactly when the last
+  record of the group is a `delete`.
+- Rule 4 precisely: only **`put` heads** are compared. The entry is in conflict when the
+  `put` heads show more than one distinct `(counter, length, classes)`. A `delete` head never
+  creates a conflict, alone or beside `put` heads.
+- A `parents` pair that names a record the reader does not have (an unknown device, or a
+  `seq` not yet received) is **not an error**. It simply removes nothing from the set of
+  heads. A parent is matched only against records of the same entry.
+- `candidates` is empty unless the entry is in conflict. In conflict it has one element per
+  `put` head, in the order above:
+
+  ```
+  { "counter": …, "length": …, "classes": …, "device": "<32 hex digits>", "ts": … }
+  ```
+
+  Heads with equal values are each listed. `heads` lists every head, `delete` heads included,
+  as `[device_hex, seq]` in the same order.
+
+**13.7 Interrupted write versus clone (§7).** `seen` holds, per stream, the number of records
+this installation has observed, plus one `pending` value. Before replacing its stream file a
+device stores in `pending` the SHA-256 (hex) of the complete new file, and only then does the
+rename. On the next load:
+
+- own stream longer than `seen` says, and the SHA-256 of the whole file **equals `pending`**:
+  an interrupted write, completed on disk but not yet acknowledged. Accepted; `seen` is
+  advanced and `pending` cleared. Since the pending file is the previous one plus a single
+  record, this case is always exactly one record beyond `seen`.
+- own stream longer than `seen` says, and no match: a clone (§7). Writing is refused.
+- own stream as long as `seen` says, with `pending` set: the rename never happened. `pending`
+  is cleared and nothing else changes.
+
+`seen` is local and never synced, so its encoding is not an interchange format; the rule is.
+
+**13.8 Keyfile (§8).** The file is 65 bytes:
+
+```
+"PW3F" || U8(1) || nonce(12) || AES-256-GCM(K_kf, nonce, factor(32), aad)     # 32 + 16 bytes
+K_kf = OKM(PRK["none"], "keyfile-wrap", 32)
+aad  = "PW3F" || U8(1) || nonce                    # the 17 bytes that precede the ciphertext
+```
+
+**13.9 Recovery text (§6).** The 134-byte recovery wrap is encoded in Base32 (RFC 4648
+alphabet, upper case) **without `=` padding**: 215 characters. They are printed in groups of
+4 separated by one space, 8 groups per line, lines separated by LF; the last group has 3
+characters and the last line 6 groups. A reader upper-cases the text, discards every character
+that is not a letter or a digit (spaces, line breaks, and any punctuation a person may have
+added), restores the padding and decodes. Look-alike characters (`0`/`O`, `1`/`I`) are not
+substituted.
+
 ## Test vectors
 
 `tests/vectors/v3/`, Python normative, same `--check` discipline as v1:
@@ -565,4 +683,5 @@ is removed in favour of the fingerprint alone. Resolved in revision 3: the recov
 printed once and kept on disk only with an explicit flag. Resolved in revision 4: `m` is
 frozen at 262144 KiB after the on-device benchmark (§9). Revision 5: diacritics are removed
 from the boost; the access slot's field widths are stated; `--mass-rekey` reissues the
-recovery text.
+recovery text. Revision 6: §13 writes down interoperability details that were only in the
+code; no behaviour, code or vector changed.
