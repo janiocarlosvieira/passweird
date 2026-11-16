@@ -1,6 +1,6 @@
 # ADR-0009 — v3: memory-hard stretching, canonical inputs and a tiered, syncable journal
 
-**Status:** Accepted (revision 3)
+**Status:** Accepted (revision 4)
 **Date:** 2026-11-16
 **Supersedes (when accepted):** the "risk accepted" decision of
 [ADR-0003](0003-chave-publica-publicada-como-oraculo-offline.md), the `info` layout of
@@ -358,23 +358,36 @@ Why these values:
 - `p=4` cuts honest latency ~2.3× on any phone or laptop without changing the attacker's
   memory × time cost.
 
-**Android: estimated, not measured.** No device was available. Assumptions: a native libargon2
-build (no AVX2) on a flagship SoC is 3–4× slower than this desktop; a mid-range 4 GB phone
-8–15×.
+**Android, measured on the target device.** Samsung Galaxy S23 Ultra (SM-S918B), Termux,
+reference `argon2` 20190702, Argon2id `t=3, m=2^18 KiB, p=4`, 64-byte tag, five runs:
 
-| Implementation | Flagship (est.) | Mid-range 4 GB (est.) |
+| Run | 1 | 2 | 3 | 4 | 5 | Median |
+|---|---|---|---|---|---|---|
+| Seconds | 0.908 | 0.975 | 0.938 | 0.928 | 0.881 | **0.928** |
+
+No allocation failure. That is 5.6× the desktop's 0.166 s, somewhat slower than the 3–4×
+assumed before the measurement, and well inside the 2 s limit.
+
+The rest of the table below is still an **estimate**: the flagship row for native code is now
+replaced by the measurement, the mid-range column and the pure-JVM row are not measured.
+Assumption for those: a mid-range 4 GB phone is 8–15× slower than the desktop.
+
+| Implementation | Flagship | Mid-range 4 GB (est.) |
 |---|---|---|
-| Native libargon2 via JNI, 4 threads | 0.5–0.8 s | 1.5–3 s |
-| Bouncy Castle, pure JVM, 1 thread | 2.5–4.5 s | 6–12 s, likely OOM |
+| Native libargon2, 4 threads | **0.93 s (measured)** | 1.5–3 s |
+| Bouncy Castle, pure JVM, 1 thread | 2.5–4.5 s (est.) | 6–12 s, likely OOM |
 
 The pure-JVM path allocates the 256 MiB on the Java heap, at or above the default per-app
 limit on many devices. The Android target therefore needs the native implementation; Bouncy
 Castle is acceptable for the desktop JVM target. The app must run the stretch off the main
 thread and keep `PRK` for a short, visible session instead of re-stretching per site.
 
-**Gate before the parameters are frozen:** benchmark on the real target phone. If the median
-exceeds 2 s, or a 4 GB device fails to allocate, drop to `m=131072` and change `ALG`
-accordingly. After the first release the parameters never change; a new set is a new `ALG`.
+**The parameters are frozen.** The gate set before freezing was a median of at most 2 s on
+the target phone with no allocation failure; the measurement above meets it, so
+`m=262144` stands and `ALG` is final. The parameters never change from here on; a different
+set would be a new `ALG` and therefore a different set of passwords. The measurement was
+taken with the reference command-line binary, not inside the app: the app's native call
+should match it, and must still run off the main thread.
 
 ### 10. Cost of an attack, in GPUs
 
@@ -504,10 +517,11 @@ against Wycheproof, plus a chi-square test on the sampler.
 
 ## Open questions
 
-1. Final `m` after the on-device benchmark (256 MiB proposed, 128 MiB fallback).
-2. Source of the Portuguese word list: it must be GPL-compatible and yield 7776 entries after
-   the §1 filters. Building it from a freely licensed frequency lexicon is the proposal.
+1. The Portuguese word list. One is built and bundled (sources and licences in
+   `src/passweird/v3/data/README.md`); its content still awaits the author's review. It can
+   change without touching the algorithm, as long as it keeps 7776 entries.
 
 Resolved in revision 2: non-ASCII sites are rejected; FIDO2 is removed; the 16-bit verifier
 is removed in favour of the fingerprint alone. Resolved in revision 3: the recovery wrap is
-printed once and kept on disk only with an explicit flag.
+printed once and kept on disk only with an explicit flag. Resolved in revision 4: `m` is
+frozen at 262144 KiB after the on-device benchmark (§9).
