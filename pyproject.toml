@@ -41,7 +41,9 @@ dependencies = [
 totp = ["pyotp>=2.10.0"]
 pgp = ["python-gnupg>=0.4.8"]     # still needs the `gpg` binary on PATH - not pip-installable
 fido2 = ["fido2>=2.2.1"]
-all = ["passweird[totp,pgp,fido2]"]
+kdbx = ["pykeepass>=4.1.0"]       # --export-kdbx (ADR-0009 §6)
+qr = ["qrcode>=7.4"]              # QR code of the recovery text at --init
+all = ["passweird[totp,pgp,fido2,kdbx,qr]"]
 dev = [
     "pytest>=6.2.5",
     # Test-only floor: cryptography 44 ships an OpenSSL-backed Argon2id, used as
@@ -51,6 +53,8 @@ dev = [
     "pyotp>=2.10.0",
     "python-gnupg>=0.4.8",
     "fido2>=2.2.1",
+    "pykeepass>=4.1.0",
+    "qrcode>=7.4",
     # Test-only: independent primality check (Baillie-PSW) used to cross-verify
     # the hand-rolled Miller-Rabin in crypto.py. Never imported at runtime.
     "sympy>=1.9",
