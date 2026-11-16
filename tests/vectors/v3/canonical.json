@@ -1,0 +1,509 @@
+{
+ "format_version": 1,
+ "spec": "ADR-0009 §1",
+ "description": "Canonical form of every input. A case has either 'expected' or 'reject': true; a port must reject exactly the same inputs.",
+ "whitespace_codepoints": [
+  9,
+  10,
+  11,
+  12,
+  13,
+  32,
+  133,
+  160,
+  5760,
+  8192,
+  8193,
+  8194,
+  8195,
+  8196,
+  8197,
+  8198,
+  8199,
+  8200,
+  8201,
+  8202,
+  8232,
+  8233,
+  8239,
+  8287,
+  12288
+ ],
+ "cases": [
+  {
+   "field": "master",
+   "input": "correct horse",
+   "expected": "correct horse"
+  },
+  {
+   "field": "master",
+   "input": "  leading and trailing kept  ",
+   "note": "no trimming",
+   "expected": "  leading and trailing kept  "
+  },
+  {
+   "field": "master",
+   "input": "MiXeD Case",
+   "note": "no case change",
+   "expected": "MiXeD Case"
+  },
+  {
+   "field": "master",
+   "input": "café",
+   "note": "NFD input becomes NFC",
+   "expected": "café"
+  },
+  {
+   "field": "master",
+   "input": "café",
+   "note": "already NFC, same bytes as the previous case",
+   "expected": "café"
+  },
+  {
+   "field": "master",
+   "input": "ﬁ",
+   "note": "NFC, not NFKC: the ligature is kept",
+   "expected": "ﬁ"
+  },
+  {
+   "field": "master",
+   "input": "señhã-mestra-ç∂é",
+   "expected": "señhã-mestra-ç∂é"
+  },
+  {
+   "field": "master",
+   "input": "地球",
+   "expected": "地球"
+  },
+  {
+   "field": "master",
+   "input": "",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input": "line\nbreak",
+   "note": "C0 control",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input": "tab\tinside",
+   "note": "C0 control",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input": "nul\u0000byte",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input": "del",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input_repeat": [
+    "x",
+    65535
+   ],
+   "note": "exactly the LP limit",
+   "expected_same_as_input": true
+  },
+  {
+   "field": "master",
+   "input_repeat": [
+    "x",
+    65536
+   ],
+   "note": "one byte over the LP limit",
+   "reject": true
+  },
+  {
+   "field": "master",
+   "input_repeat": [
+    "é",
+    32768
+   ],
+   "note": "65536 bytes in UTF-8",
+   "reject": true
+  },
+  {
+   "field": "access_password",
+   "input": "abre o diário",
+   "expected": "abre o diário"
+  },
+  {
+   "field": "access_password",
+   "input": "",
+   "reject": true
+  },
+  {
+   "field": "boost",
+   "input": "cavalo bateria grampo correto girassol",
+   "expected": "cavalo bateria grampo correto girassol"
+  },
+  {
+   "field": "boost",
+   "input": "  Cavalo   Bateria\tGrampo \n correto  GIRASSOL  ",
+   "note": "phone-keyboard spelling of the same boost",
+   "expected": "cavalo bateria grampo correto girassol"
+  },
+  {
+   "field": "boost",
+   "input": "cavalo bateria grampo",
+   "note": "no-break and em space are whitespace",
+   "expected": "cavalo bateria grampo"
+  },
+  {
+   "field": "boost",
+   "input": "ÁGUA É Vida",
+   "note": "only ASCII letters are lowered",
+   "expected": "Água É vida"
+  },
+  {
+   "field": "boost",
+   "input": "aguá",
+   "note": "NFC applied",
+   "expected": "aguá"
+  },
+  {
+   "field": "boost",
+   "input": "   \t  ",
+   "reject": true
+  },
+  {
+   "field": "boost",
+   "input": "",
+   "reject": true
+  },
+  {
+   "field": "boost",
+   "input": "a\u0000b",
+   "reject": true
+  },
+  {
+   "field": "boost",
+   "input": "a​b",
+   "note": "zero-width space is not White_Space: kept",
+   "expected": "a​b"
+  },
+  {
+   "field": "user_id",
+   "input": "  Fulano.Silva@Example.COM ",
+   "expected": "fulano.silva@example.com"
+  },
+  {
+   "field": "user_id",
+   "input": "fulano.silva@example.com",
+   "expected": "fulano.silva@example.com"
+  },
+  {
+   "field": "user_id",
+   "input": "JOSÉ@exemplo.br",
+   "note": "non-ASCII letters keep their case",
+   "expected": "josÉ@exemplo.br"
+  },
+  {
+   "field": "user_id",
+   "input": "   ",
+   "reject": true
+  },
+  {
+   "field": "user_id",
+   "input": "a\nb",
+   "reject": true
+  },
+  {
+   "field": "login",
+   "input": "",
+   "expected": ""
+  },
+  {
+   "field": "login",
+   "input": "   ",
+   "note": "trims to empty, which means no login",
+   "expected": ""
+  },
+  {
+   "field": "login",
+   "input": " Fulano ",
+   "expected": "fulano"
+  },
+  {
+   "field": "login",
+   "input": "Fulano@Example.com",
+   "expected": "fulano@example.com"
+  },
+  {
+   "field": "login",
+   "input": "ab",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "github.com",
+   "expected": "github.com"
+  },
+  {
+   "field": "site",
+   "input": "https://WWW.GitHub.com:443/login?x=1",
+   "expected": "github.com"
+  },
+  {
+   "field": "site",
+   "input": "  GitHub.COM.  ",
+   "expected": "github.com"
+  },
+  {
+   "field": "site",
+   "input": "http://user:pass@example.org:8080/path#frag",
+   "expected": "example.org"
+  },
+  {
+   "field": "site",
+   "input": "accounts.google.com",
+   "note": "no public suffix list: subdomain is kept",
+   "expected": "accounts.google.com"
+  },
+  {
+   "field": "site",
+   "input": "www.example.com",
+   "expected": "example.com"
+  },
+  {
+   "field": "site",
+   "input": "www.www.example.com",
+   "note": "every leading www. is stripped, so the form is a fixed point",
+   "expected": "example.com"
+  },
+  {
+   "field": "site",
+   "input": "www",
+   "note": "nothing to strip",
+   "expected": "www"
+  },
+  {
+   "field": "site",
+   "input": "www.",
+   "note": "trailing dot goes first, then nothing to strip",
+   "expected": "www"
+  },
+  {
+   "field": "site",
+   "input": "ufpb-sigaa",
+   "note": "free-form context",
+   "expected": "ufpb-sigaa"
+  },
+  {
+   "field": "site",
+   "input": "my_server.lan",
+   "expected": "my_server.lan"
+  },
+  {
+   "field": "site",
+   "input": "192.168.0.1:8443",
+   "expected": "192.168.0.1"
+  },
+  {
+   "field": "site",
+   "input": "ｇｉｔｈｕｂ.com",
+   "note": "NFKC folds full-width letters",
+   "expected": "github.com"
+  },
+  {
+   "field": "site",
+   "input": "xn--bcher-kva.de",
+   "note": "the accepted form of a non-ASCII host",
+   "expected": "xn--bcher-kva.de"
+  },
+  {
+   "field": "site",
+   "input": "bücher.de",
+   "note": "non-ASCII host is rejected",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "地球-サーバー",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "example.com/",
+   "expected": "example.com"
+  },
+  {
+   "field": "site",
+   "input": "example.com?x",
+   "expected": "example.com"
+  },
+  {
+   "field": "site",
+   "input": "example.com#x",
+   "expected": "example.com"
+  },
+  {
+   "field": "site",
+   "input": "ssh://git@host.example:22",
+   "expected": "host.example"
+  },
+  {
+   "field": "site",
+   "input": "host.example:",
+   "expected": "host.example"
+  },
+  {
+   "field": "site",
+   "input": "",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "   ",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "https://",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "minha conta",
+   "note": "inner whitespace",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "-leading-hyphen.com",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "trailing-hyphen-",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": ".hidden",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "a",
+   "expected": "a"
+  },
+  {
+   "field": "site",
+   "input": "a!b",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "[::1]:8080",
+   "reject": true
+  },
+  {
+   "field": "site",
+   "input": "user@",
+   "reject": true
+  },
+  {
+   "field": "counter",
+   "input": 1,
+   "expected": 1
+  },
+  {
+   "field": "counter",
+   "input": 4294967295,
+   "expected": 4294967295
+  },
+  {
+   "field": "counter",
+   "input": 0,
+   "reject": true
+  },
+  {
+   "field": "counter",
+   "input": -1,
+   "reject": true
+  },
+  {
+   "field": "counter",
+   "input": 4294967296,
+   "reject": true
+  },
+  {
+   "field": "classes",
+   "input": 15,
+   "expected": 15
+  },
+  {
+   "field": "classes",
+   "input": 4,
+   "expected": 4
+  },
+  {
+   "field": "classes",
+   "input": 0,
+   "reject": true
+  },
+  {
+   "field": "classes",
+   "input": 16,
+   "reject": true
+  },
+  {
+   "field": "length",
+   "input": 18,
+   "classes": 15,
+   "expected": 18
+  },
+  {
+   "field": "length",
+   "input": 8,
+   "classes": 15,
+   "expected": 8
+  },
+  {
+   "field": "length",
+   "input": 7,
+   "classes": 15,
+   "reject": true
+  },
+  {
+   "field": "length",
+   "input": 128,
+   "classes": 15,
+   "expected": 128
+  },
+  {
+   "field": "length",
+   "input": 129,
+   "classes": 15,
+   "reject": true
+  },
+  {
+   "field": "length",
+   "input": 6,
+   "classes": 4,
+   "note": "digits only: minimum is 6",
+   "expected": 6
+  },
+  {
+   "field": "length",
+   "input": 5,
+   "classes": 4,
+   "reject": true
+  },
+  {
+   "field": "length",
+   "input": 6,
+   "classes": 5,
+   "note": "digits plus lower is not digits only",
+   "reject": true
+  }
+ ]
+}

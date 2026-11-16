@@ -74,7 +74,8 @@ version of the runtime, which is exactly the kind of divergence that surfaces as
 1. NFKC, trim.
 2. Drop a `scheme://` prefix; drop everything from the first `/`, `?` or `#`.
 3. Drop userinfo (up to and including the last `@`); drop a trailing `:port`.
-4. ASCII-lower; strip trailing dots; strip one leading `www.`.
+4. ASCII-lower; strip trailing dots; strip every leading `www.` (repeatedly, so that the
+   canonical form is a fixed point).
 5. The result must match `^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$`, else the input is **rejected**.
 
 `https://WWW.GitHub.com:443/login?x=1` → `github.com`. `ufpb-sigaa` stays `ufpb-sigaa`.
