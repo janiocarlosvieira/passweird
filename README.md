@@ -1,53 +1,57 @@
 # Passweird
 
-Passweird is a **deterministic, stateless** password generator: instead of storing passwords
-in a vault, it recomputes the same password every time you give it the same ingredients —
-**master password + application/context name** (and, optionally, a **temporal secret**). There
-is no password file to leak or lose: if you remember the master password and the context, you
-can rebuild the password on any machine.
+Passweird is a **deterministic** password generator: instead of storing passwords in a vault, it
+recomputes the same password every time it is given the same ingredients. Nothing on disk can
+generate a password; if you remember your secrets you can rebuild every one of them on any
+machine.
 
-The same principle extends to other cryptographic identities: **SSH** keys, **SSL/TLS**
-certificates, **TOTP** secrets and **PGP** key pairs can also be regenerated identically from
-the same ingredients.
+The same derivation produces **SSH** keys, **TLS** certificates (Ed25519 or RSA), **TOTP**
+secrets and **OpenPGP** key pairs.
 
-## Architecture
+This is the **v3** engine, specified in
+[ADR-0009](docs/adr/0009-v3-key-stretching-and-derivation.md). It is a compatibility break: no
+v2 password reproduces under v3. See [Migrating from v2](#migrating-from-v2).
 
-The `passweird` package is split into three modules:
+## What you remember, and what each thing opens
 
-- **`crypto.py`** — all the pure math: hashing, HKDF derivation, deterministic password/key
-  generation, AES-GCM encryption.
-- **`storage.py`** — persistence, logs, configuration, export to password managers,
-  internationalization (`_()`).
-- **`main.py`** — command-line interface and orchestration, exposed as the `passweird` command.
+| Secret | Opens | If it leaks |
+|---|---|---|
+| **Master password** + **boost** | every password and key | everything; both are needed |
+| **Access password** | the journal: your site list, counters, notes | metadata and notes, no password |
+
+- The **boost** is one extra secret, the same for every site, drawn once by the tool and
+  memorised. Master and boost go through Argon2id (256 MiB) **together**, so neither can be
+  guessed without the other and every guess costs a full memory-hard computation.
+- The **journal** remembers what a stateless generator cannot: which sites you use and which
+  counter, length and character classes each one has. It is encrypted, never holds a password,
+  and is meant to be replicated between your devices (for example with Syncthing).
+- A **fingerprint** such as `kode-nafi` is shown on every run. It is how you notice a typo in
+  the master password or boost. It is stored nowhere.
 
 ## Requirements
 
 - Python 3.10+
-- The `gpg` (GnuPG) binary installed on the system, if you plan to use `--pgp`. On Windows this
-  means installing [Gpg4win](https://gpg4win.org/) separately — `python-gnupg` only talks to a
-  `gpg` binary, it doesn't ship one.
-- A physical FIDO2 authenticator (YubiKey or similar), if you plan to use
-  `--fido2`/`--fido2-register`
+- The `gpg` (GnuPG) binary, only for `--pgp`. On Windows install
+  [Gpg4win](https://gpg4win.org/) separately.
 
 ## Installation
 
 ```bash
-pipx install passweird            # recommended: isolated environment, works the same on Linux and Windows
+pipx install passweird            # recommended
 # or: pip install passweird
 ```
 
-The base install only pulls in `cryptography`, the one dependency the tool always needs. TOTP,
-PGP and FIDO2 support are optional extras, since most sessions use none of them:
+Optional extras:
 
 ```bash
-pipx install "passweird[totp]"    # --totp
-pipx install "passweird[pgp]"     # --pgp (still requires the gpg binary, see Requirements)
-pipx install "passweird[fido2]"   # --fido2 / --fido2-register
-pipx install "passweird[all]"     # all three
+pipx install "passweird[kdbx]"    # --export-kdbx (KeePass database)
+pipx install "passweird[qr]"      # QR code of the recovery text
+pipx install "passweird[totp]"    # otpauth URI and current code for --totp
+pipx install "passweird[pgp]"     # --pgp (still requires the gpg binary)
+pipx install "passweird[all]"
 ```
 
-To work on Passweird itself (running the test suite, etc.), clone the repository and install it
-editable with the `dev` extra:
+For development:
 
 ```bash
 git clone https://github.com/janiocarlosvieira/passweird.git
@@ -56,277 +60,176 @@ pip install -e ".[dev]"
 pytest tests/ -q
 ```
 
-## Basic usage
+## First steps
 
 ```bash
-passweird <context>
+passweird --gen-boost     # draws 5 Portuguese words (64.6 bits); memorise them
+passweird --init          # user id (e.g. your e-mail), master, boost, access password
 ```
 
-You will be prompted for the master password (hidden input), and the deterministic password
-for that context is generated and shown:
+`--init` prints the fingerprint and, **once**, a recovery text (Base32, plus a QR code with the
+`qr` extra). Keep it on paper or offline: together with master + boost it reopens the journal
+if you forget the access password. It is not stored on the device unless you pass
+`--keep-recovery-file`.
+
+Then:
 
 ```bash
-$ passweird github
-Master password:
-Context: github
-Generated Password: 6x93w7CpY@UgRXm1U+
+passweird github.com -u fulano     # derive a password, and remember the site
+passweird github.com -u fulano     # same password again
+passweird github.com -u fulano --bump    # rotate: shows the current and the next password
+passweird --list                   # needs only the access password
 ```
 
-Running the same command again, with the same master password, produces **exactly the same
-password**.
+Secrets are always prompted hidden. They are never accepted as command-line arguments, never
+printed back and never written to disk.
 
-### Recommended first steps
+### More devices
+
+Replicate the journal folder (`~/.passweird/v3/journal` by default, or `--journal-dir`) with a
+tool such as Syncthing, then on each further device:
 
 ```bash
-# 1. Creates a default, commented configuration file at ~/.passweird/passweird.cfg
-passweird -g
-
-# 2. Registers your master password's hash locally, to catch typos
-passweird --register-master
-
-# 3. Saves the current flags (length, character classes, etc.) as the default
-passweird -L 24 -s --save-settings
+passweird --join --journal-dir /path/to/synced/journal
 ```
+
+Each device appends only to its own file inside the folder, so the sync tool never has two
+versions of one file to reconcile. If two devices rotate the same site while offline, the
+higher counter wins and the entry is marked as a conflict until you run `--resolve SITE`.
+
+## Site names
+
+A URL is reduced to its host by a fixed, purely syntactic rule:
+`https://WWW.GitHub.com:443/login` becomes `github.com`. There is no public-suffix logic, so
+`accounts.google.com` and `google.com` are different sites; the canonical name is always
+printed before the password. Non-ASCII host names are rejected: enter the `xn--` form.
 
 ## Flag reference
 
-### Standard password generation
+### Derivation
 
 | Flag | Description |
 |---|---|
-| `context` (positional) | Application/context name (visible mode) |
-| `-T, --temporal` | Temporal secret/salt (e.g. `2026/01`, `Q2`). If omitted, it is prompted for interactively (or read from `--temporal-secret-file`) |
-| `-L, --length` | Password length (default 18; minimum 8, or 6 if digits-only) |
-| `-p, --paranoid` | Paranoid mode: hides the context as you type it |
-| `-U, --no-uppercase` / `-l, --no-lowercase` / `-n, --no-numbers` / `-s, --no-specials` | Disable character classes |
-| `-v, --invisible-password [color]` | Prints the password in an "invisible" color (default: black) |
-| `-o, --output {bitwarden,keepassxc,protonpass,chrome,firefox,seahorse,kaspersky}` | Exports the entry to a password manager's CSV format |
-| `--force` | Skips the warning about flags differing from the last logged use |
+| `SITE` | Site or context. Prompted if omitted (`-p` prompts hidden) |
+| `-u, --login` | Login at the site; part of the derivation |
+| `-C, --counter N` | Derive with this counter instead of the journal's |
+| `--bump` | Rotate: show current and next password, record the new counter |
+| `-L, --length` | Length, 8–128 (6–128 for digits only). Default 18 |
+| `-U`, `-l`, `-n`, `-s` | Disable uppercase / lowercase / digits / specials |
+| `--force` | Use the flags given even if the journal entry differs, and record them |
+| `--no-journal` | Stateless run: reads and writes nothing (add `--user-id` if not initialised) |
+| `--key-file PATH` | Keyfile as a second factor (see `--gen-keyfile`) |
+| `--totp`, `--ssh`, `--ssl`, `--rsa BITS`, `--pgp` | Derive that kind of material instead of a password |
 
-### Master password and temporal secret
+When the journal has an entry for a site, its counter, length and classes are used; flags that
+differ are an error unless `--force`.
 
-| Flag | Description |
-|---|---|
-| `--master-file FILE` | Reads the master password from a plaintext file (**insecure**, prints a warning) |
-| `--master-pass PASSWORD` | Passes the master password directly on the command line (**insecure**, prints a warning) |
-| `--temporal-secret-file FILE` | Reads the default temporal secret from a file (Enter at the prompt repeats that value) |
-| `--register-master` | Registers the current master password's hash as this machine's default (asks for double confirmation the first time) |
-| `--no-check` | Skips verification against the registered hash |
-
-### Change mode and batch processing
+### Journal (access password only)
 
 | Flag | Description |
 |---|---|
-| `-c, --change` | Change mode: asks for old/new master/app, generates both, logs with a `C` marker |
-| `-f, --file [FILE]` | Batch-processes a text file (`context identifiers...` per line) or CSV (`app,identifiers`) |
-| `--mass-rekey` | Regenerates passwords for **every** context saved in `hosts.enc` under a new master password, exports a CSV with old/new pairs, and re-encrypts `hosts.enc` with the new password |
-| `--old-key-file` / `--new-key-file` | Old/new physical keyfiles to use during `--mass-rekey` |
+| `--list`, `--show SITE`, `--history [SITE]` | Read the journal |
+| `--edit SITE` with `--notes`, `--second-factor`, `--hw-key` | Free-form fields: notes, where the site's TOTP lives, physical keys registered there |
+| `--resolve SITE`, `--delete SITE` | Clear a conflict; delete an entry (its counter is kept as a floor) |
+| `--import-list FILE` | Add sites from a text file, one per line (`site [login]`) |
+| `--change-access-password` | Change it. **This does not revoke the old one**: any earlier copy of `keys.pw3` still opens the journal |
 
-### Physical second factor
-
-| Flag | Description |
-|---|---|
-| `--key-file PATH` | Uses a file (any file, or a keyfile generated by Passweird) as a second factor, blended into the master password hash |
-| `--gen-keyfile PATH` | Generates a new **random** keyfile, encrypted at rest with the current master password — a "something you have" factor: losing the file without a backup means losing the factor |
-| `--gen-keyfile PATH --recoverable` | Generates a keyfile **derived from the master password + a recovery phrase** asked interactively — can be regenerated from memory if the physical file is lost |
-| `--fido2-register` | Registers a new credential on a connected FIDO2 security key (requires a physical touch) |
-| `--fido2` | Uses the registered FIDO2 credential as an additional factor for the current generation (requires a physical touch on every use) |
-
-### Additional deterministic identities
+### Setup, recovery, export
 
 | Flag | Description |
 |---|---|
-| `--ssh` | Generates a deterministic SSH Ed25519 key pair |
-| `--ssl` | Generates a deterministic self-signed SSL/TLS certificate (Ed25519) |
-| `--rsa BITS` | Like `--ssl`, but using RSA — fully deterministic: primes p and q are derived from the same HKDF stream (minimum 2048, multiple of 16). Typical cost: ~1s at 2048 bits, ~2s at 4096 bits |
-| `--totp` | Generates a deterministic TOTP secret (shows the Base32 secret, the `otpauth://` URI and the current 6-digit code) |
-| `--pgp` | Generates a deterministic PGP/OpenPGP key pair (exported in armored format, ready for `gpg --import`) |
+| `--gen-boost [N]` | Draw a boost of N words (default 5, minimum 4) |
+| `--init`, `--join`, `--journal-dir DIR` | First device; further devices |
+| `--new-device-id` | After copying or restoring an installation |
+| `--gen-keyfile PATH` | Create a keyfile (never overwrites). Copy it to every device and to a backup |
+| `--recover [--recovery-file PATH]` | Lost access password: reopen the journal with the recovery text |
+| `--print-recovery`, `--keep-recovery-file` | Issue the recovery text again; store it on this device |
+| `--export-kdbx FILE` | Export passwords (all, or `SITE`) to a new KeePass database |
+| `--mass-rekey --export-kdbx FILE` | New master/boost: old and new password of every site |
+| `--secrets-stdin` | Read every prompt from standard input, for automation |
 
-> ⚠️ **Use a strong temporal secret with `--ssl` and `--rsa`.**
-> The certificate publishes the context name in the CN field, in plain text. In other words:
-> choosing an unpredictable context name **protects nothing** here — whoever downloads the
-> certificate can just read the context. Because the public key is published too, it acts as an
-> offline verification oracle: an attacker can test candidate master passwords against the
-> modulus `n` with no rate limit at all.
->
-> Given that, the temporal secret (`-T`) is **the only unpredictable input that does not leak
-> with the artifact**. Treat it as a second password, not a version label: use something like a
-> 6+ word random passphrase, not `2026/01`. The CLI warns when you generate a certificate
-> without a temporal secret.
->
-> The same applies **to the same degree** to `--pgp`: the key's UID is `Passweird <context>`,
-> so the context is published there too. For `--ssh` the context does **not** leak (the public
-> key is derived from `app_hash` and carries no comment), so there an unpredictable context
-> name genuinely adds entropy.
+### Export to a password manager
 
-### Auditing, logs and the host list
-
-| Flag | Description |
-|---|---|
-| `--audit` | Checks whether a context/temporal pair has been used before, by searching the local log (without `context`/`-T` on the command line, everything is prompted hidden — leaves no trace in the shell history) |
-| `--view-log` | Decrypts and displays the full log history |
-| `--plain-log` | Disables AES encryption for the log (writes it in plain text) |
-| `-w, --write` | Disables writing hash summaries to the log |
-| `--no-print-hash` | Does not print the hash-summary line to the terminal |
-| `--encrypt-list FILE` | Encrypts a plain text file of host/system names into `~/.passweird/hosts.enc` |
-| `--view-list` | Decrypts and displays the saved host/system list |
-
-### Configuration
-
-| Flag | Description |
-|---|---|
-| `-g, --generate` | Creates a commented `~/.passweird/passweird.cfg` with all options, then exits |
-| `--save-settings` | Saves the current flags as defaults in `passweird.cfg` |
-
-Run `passweird --help` for the complete, up-to-date list (the help text is fully
-internationalized — see below).
-
-## Internationalization
-
-The interface detects the system language (`locale`) automatically. Languages supported today:
-**Portuguese, Spanish, French, German and Simplified Chinese** (with English as the fallback
-default for anything not translated). To test a specific language:
+Passwords leave Passweird only as an encrypted KeePass database (KDBX 4; Argon2id, 256 MiB,
+3 iterations, parallelism 4). There is no plaintext export.
 
 ```bash
-LANG=fr_FR.UTF-8 passweird --help
+passweird --export-kdbx ~/passweird-export.kdbx
 ```
 
-(requires the corresponding locale to be installed on the system, e.g. via `locale-gen`).
+Then in KeePassXC open your main database, choose **Database → Merge From Database…**, select
+the export, and delete it afterwards.
 
 ## Security model, in short
 
-- The master password is never written to disk — only a double hash (`modified_hash`) is
-  optionally registered for local checking.
-- Logs store only **truncated hash summaries** (password, master, app, temporal), never the
-  values themselves — and are encrypted with AES-256-GCM by default.
-- Keyfiles generated by Passweird (`--gen-keyfile`) are encrypted at rest with the current
-  master password: whoever only has the file, without the password, has nothing.
-- Changing the master password automatically invalidates old keyfiles and the old `hosts.enc`
-  — use `--mass-rekey` to migrate everything at once.
+- **Nothing stored can generate.** No hash of the master password, no summary of any secret
+  and no generated password is written anywhere. A test scans every file the tool creates.
+- **A leaked site password is an offline oracle, at a price.** Someone holding one of your
+  passwords, its site and your user id can test guesses of master + boost. Each guess costs one
+  Argon2id over 256 MiB; a high-end GPU manages on the order of 100 per second, against about
+  10¹⁰ for the v2 scheme. A 5-word boost alone puts the search out of reach
+  ([ADR-0009 §10](docs/adr/0009-v3-key-stretching-and-derivation.md)).
+- **Published public keys** (`--ssh`, `--ssl`, `--rsa`, `--pgp`) are the same kind of oracle.
+- **The synced journal** is an oracle for the access password only. The recovery text is an
+  oracle for master + boost, which is why it is kept off disk by default.
+- **Not protected against:** a compromised machine or keylogger, phishing (nothing ties the
+  site name to the page you are on), and a device that already holds the journal key.
+- Python cannot reliably erase strings from memory; keys are zeroed on a best-effort basis.
 
-### Published asymmetric material needs more care
+Let the tool draw the boost. A phrase you invent is far weaker than it looks, and its strength
+cannot be measured; five random words are 64.6 bits whatever the attacker knows about the method.
 
-Passwords are only testable against the service, which enforces a rate limit. **Public keys are
-different**: once published (a TLS certificate served by a host, an SSH key in
-`authorized_keys`, a PGP key on a keyserver), anyone can test candidate master passwords
-offline, with no limit, by comparing the result against the known public key.
-
-The cost of deriving the key does **not** protect against this to the degree it appears to: the
-attacker does not need to redo the primality tests, only divide the modulus by each candidate in
-the sequence. Measured: ~2.4ms per attempt per core, versus ~0.8µs for a regular password guess.
-That is a ~3,000× brake, not 300,000×.
-
-Practical consequence — when using `--ssl`, `--rsa`, `--pgp` or `--ssh`:
-
-1. **Use a strong temporal secret** (`-T`). For `--ssl`/`--rsa` it is the only unpredictable
-   input that is not published with the certificate.
-2. **Master password and temporal secret combined need high entropy.** Two 6-word random
-   passphrases (~77 bits each) comfortably suffice. Short or "old-style" memorable passwords do
-   not.
-3. **Consider `--key-file` or `--fido2`.** A random keyfile contributes entropy that is not
-   guessable, and does not depend on you remembering anything.
-
-### How to choose a temporal secret (and why "looking strong" is misleading)
-
-Length and character variety **do not measure** entropy. What measures it is
-unpredictability — how many guesses an attacker needs, knowing how you think.
-
-| Temporal secret | A naive meter would say | In practice | Time to crack¹ |
-|---|---|---|---|
-| `08/2026`, `2026/01`, `Q2` | ~15 bits | **~9 bits** | instant |
-| `[mYpAsswordiSaUgustoF26]` | **~147 bits** | **~40 bits** | ~17 minutes |
-| 4 randomly drawn words | ~50 bits | **~52 bits** | ~42 days |
-| 6 randomly drawn words | ~75 bits | **~78 bits** | ~7 million years |
-
-¹ at 10⁹ guesses/s — see
-[ADR-0003](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md).
-
-The second row is the trap, and it deserves attention. `[mYpAsswordiSaUgustoF26]` has 24
-characters, alternating case, digits and brackets; any strength meter would rate it as
-excellent. But it is a **predictable phrase with a predictable transformation**: "my password is
-august of 26", plus a capitalization pattern and a wrapper. Real cracking tools (hashcat rules,
-PRINCE, statistical models) attack exactly this structure — a dictionary of plausible phrases
-crossed with a large rule set reaches it in around 2⁴⁰.
-
-**It is much better than `08/2026`** — it goes from ~9 to ~40 bits. But it sits four orders of
-magnitude below what it appears to offer, and it is exactly this kind of secret that produces
-false confidence.
-
-What works is drawing at random, not cleverness: **words chosen randomly** (diceware, dice,
-`shuf`). The entropy becomes a number you can compute, and it **still holds even if the
-attacker knows exactly the method** — which is the test that "clever" phrases fail.
+## Migrating from v2
 
 ```bash
-# draws a temporal secret at random and reports how many bits it actually carries
-passweird --gen-temporal        # 6 words
-passweird --gen-temporal 8      # more margin
+passweird --init
+passweird --migrate-v2                              # site list and settings
+passweird --migrate-v2 --export-kdbx pairs.kdbx     # also old → new password per site
+passweird --v2-show CONTEXT                         # read-only: one v2 password
 ```
 
-### Why this README does not suggest "creative" patterns
+The v2 site list (`hosts.enc`) is imported; lengths and character classes are recovered from the
+v2 log where a record matches. Entries without a canonical v3 name are listed, not guessed. The
+v2 files are deleted only if you confirm. v2 passwords made with `--fido2` cannot be reproduced.
 
-It is tempting to offer a repertoire of ideas — swap the date for an album name, interleave
-letters and digits, reverse the letter order. The intuition is that varied examples break the
-bias of everyone choosing the same thing, like in the experiment where almost everyone answers
-"red hammer" when asked for a tool and a color.
+If the v2 master password was ever registered with `--register-master`, or its summary line was
+shown or logged, treat it as exposed and **do not reuse it** as the v3 master.
 
-The lesson of the red-hammer result, though, is different: **free human choice carries ~4
-bits**. Suggesting something else does not eliminate the clustering, it only relocates it. And
-there is an asymmetry here that flips the outcome: **the attacker reads this README**. Every
-published suggestion becomes a rule they can *enumerate*; you are merely *nudged* by it.
+Removed in v3: `-T` and temporal-secret files (replaced by the boost and the counter),
+`--register-master`, `--master-pass`/`--master-file`, the plaintext log, CSV export, FIDO2 as a
+derivation factor, `--recoverable` keyfiles, change mode (`-c`) and batch mode (`-f`).
 
-Measuring the patterns that are commonly proposed, assuming the attacker knows the scheme:
+## Code layout
 
-| Pattern | Remaining space | Time |
-|---|---|---|
-| Interleaving month and year (`a2u0g2u6s`) | 12 × 10 × 8 = **2¹⁰** | instant |
-| `NN-FamousAlbum-NN` (`08-DarkSideOfTheMoon-26`) | 2¹⁴ × 12 × 10 × 8 = **2²⁴** | instant |
-| Reversing the letters of a phrase | 2²⁰ × 2¹² = **2³²** | instant |
-| 6 randomly drawn words | **2⁷⁸** | 7 million years |
+- `passweird/v3/` — the v3 engine: `canon` (input canonical form), `derive` (Argon2id, HKDF,
+  sampling), `keys` and `journal` (key hierarchy, per-device streams, merge), `kdbx`,
+  `artifacts` (SSH/TLS/OpenPGP), `migrate`, `app` (what the CLI does).
+- `passweird/main.py` — argument parsing.
+- `passweird/crypto.py`, `passweird/storage.py` — the v2 engine, kept to read old data and for
+  the shared key-format builders.
+- `kotlin/` — the Android/desktop app, **still on the v2 engine**; porting it to v3 is pending.
 
-Notice that the first one *looks* the most clever and is the weakest of all. Reversing letters,
-incidentally, is hashcat's `r` rule — it has been in every rule set for decades.
-
-The takeaway: **how much effort a scheme demands from your memory has no relation to what it
-costs an attacker.** That is why there is a random generator here (`--gen-temporal`) instead of
-a catalog of ideas.
-
-Passweird deliberately **does not display a strength meter**: a charset-based score would give
-~147 bits to the example above and bless the wrong choice. It only warns about unarguably weak
-shapes (empty, digits/punctuation only, too short) and points to this section. Silence means
-"not obviously weak" — never "strong".
-
-See [`docs/adr/0003`](docs/adr/0003-chave-publica-publicada-como-oraculo-offline.md) for the
-full analysis and the measured numbers.
+The command line is currently English only; the v2 translations have not been carried over yet.
 
 ## Running the tests
 
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
+python tools/generate_vectors_v3.py --check
 ```
 
-The suite (pytest) covers:
+- `tests/test_v3_canon.py`, `test_v3_derive.py`, `test_v3_journal.py` — the v3 golden vectors in
+  `tests/vectors/v3/`, plus checks that do not come from this code: Argon2id against a second
+  implementation and the RFC 9106 vector, HKDF against Wycheproof, a chi-square test of the
+  sampler.
+- `tests/test_v3_cli.py`, `test_v3_migrate.py`, `test_v3_kdbx.py`, `test_v3_artifacts.py`,
+  `test_v3_wordlist.py` — the command line end to end, migration, export, key material.
+- `tests/test_crypto.py`, `test_storage.py`, `test_regressions.py`, `test_vectors.py` — the v2
+  engine.
 
-- `tests/test_crypto.py` — determinism of every primitive (HKDF, password, SSH, SSL, TOTP, PGP,
-  keyfiles, FIDO2 with a mocked client).
-- `tests/test_regressions.py` — dedicated regressions for bugs already fixed (the
-  `--key-file`/`hashlib` bug, `--ssl`/`datetime.UTC`, mixed-format log records, HKDF domain
-  separation, the PGP creation-time window).
-- `tests/test_storage.py` — configuration, export formats, log build/read, host list,
-  translation consistency.
-- `tests/test_cli.py` — full CLI flows (change, batch, master-file, temporal-file, keyfile,
-  TOTP, PGP, mass rekey) with simulated input.
-
-The tests never touch the real `~/.passweird`: a `conftest.py` redirects `HOME` to a temporary
-directory for every test.
-
-**Known limitation:** the FIDO2 tests use a simulated client (no physical hardware is available
-in the development environment). If you have a FIDO2 security key, validate manually with:
-
-```bash
-passweird --fido2-register
-passweird mycontext --fido2
-```
+The tests never touch the real `~/.passweird`: `conftest.py` redirects the home directory to a
+temporary one for every test.
 
 ## License
 
