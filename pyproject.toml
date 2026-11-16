@@ -32,6 +32,8 @@ classifiers = [
 # forced on every user.
 dependencies = [
     "cryptography>=3.4.8",
+    # v3 stretching (ADR-0009 §3): reference libargon2, the normative Argon2id.
+    "argon2-cffi>=23.1.0",
     "colorama>=0.4.6; platform_system == 'Windows'",
 ]
 
@@ -42,6 +44,10 @@ fido2 = ["fido2>=2.2.1"]
 all = ["passweird[totp,pgp,fido2]"]
 dev = [
     "pytest>=6.2.5",
+    # Test-only floor: cryptography 44 ships an OpenSSL-backed Argon2id, used as
+    # the independent second implementation in tests/test_v3_derive.py. Below it
+    # those cross-checks skip instead of failing.
+    "cryptography>=44",
     "pyotp>=2.10.0",
     "python-gnupg>=0.4.8",
     "fido2>=2.2.1",

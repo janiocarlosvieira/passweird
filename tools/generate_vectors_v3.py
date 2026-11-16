@@ -18,7 +18,7 @@ import json
 import pathlib
 import sys
 
-from passweird.v3 import canon
+from passweird.v3 import canon, derive
 
 OUTPUT_DIR = pathlib.Path(__file__).resolve().parent.parent / "tests" / "vectors" / "v3"
 FORMAT_VERSION = 1
@@ -158,8 +158,167 @@ def build_canonical():
     }
 
 
+# --- §2-§5: stretching, expansion, sampling ----------------------------------
+
+# Three full-cost Argon2id cases. Everything else starts from a given K0 so a
+# port does not pay 256 MiB per case.
+STRETCH_INPUTS = [
+    ("ascii", "minha senha mestra", "cavalo bateria grampo correto girassol", "fulano@example.com"),
+    ("unicode", "señhã-mestra-ç∂é 地球", "água pão maçã coração avó", "José@Exemplo.BR"),
+    ("needs-canonicalisation", "café ", "  Cavalo   Bateria\tGrampo ", "  Fulano@Example.COM "),
+]
+
+FIXED_K0 = bytes(range(64))
+FIXED_KEYFILE = bytes(range(100, 132))
+
+
+def _stretch_case(label, master, boost, user_id):
+    m, b, u = canon.master(master), canon.boost(boost), canon.user_id(user_id)
+    k0 = derive.stretch(m, b, u)
+    prk = derive.extract(k0)
+    return {
+        "label": label,
+        "master": master, "boost": boost, "user_id": user_id,
+        "canonical": {"master": m, "boost": b, "user_id": u},
+        "argon2_password_hex": derive.stretch_input(m, b).hex(),
+        "argon2_salt_hex": derive.salt_for(u).hex(),
+        "k0_hex": bytes(k0).hex(),
+        "prk_none_hex": bytes(prk).hex(),
+        "fingerprint": derive.fingerprint(prk),
+        "password_github": derive.password(prk, "github.com"),
+    }
+
+
+def _password_case(prk, label, site, login="", counter=1, length=18, classes=15):
+    extra = derive.password_extra(length, classes)
+    stream = derive.okm(prk, "password", derive.PASSWORD_STREAM_BYTES, site, login, counter, extra)
+    pw, trace = derive.sample_password(stream, length, classes)
+    assert pw == derive.password(prk, site, login, counter, length, classes)
+    return {
+        "label": label, "site": site, "login": login, "counter": counter,
+        "length": length, "classes": classes,
+        "info_hex": derive.info("password", site, login, counter, extra).hex(),
+        "stream_first_64_hex": stream[:64].hex(),
+        "stream_sha256": __import__("hashlib").sha256(stream).hexdigest(),
+        **trace,
+        "expected_password": pw,
+    }
+
+
+def _find(prk, predicate, limit=5000, **kw):
+    """First site name whose derivation satisfies predicate(trace)."""
+    for i in range(limit):
+        case = _password_case(prk, "", f"probe-{i}.example", **kw)
+        if predicate(case):
+            return case
+    raise AssertionError("no probe site satisfied the predicate")
+
+
+def build_derivation():
+    prk_none = derive.extract(FIXED_K0)
+    prk_key = derive.extract(FIXED_K0, derive.FACTOR_KEYFILE, FIXED_KEYFILE)
+
+    passwords = [
+        _password_case(prk_none, "default", "github.com"),
+        _password_case(prk_none, "with-login", "github.com", login="fulano"),
+        _password_case(prk_none, "counter-2", "github.com", counter=2),
+        _password_case(prk_none, "counter-max", "github.com", counter=2**32 - 1),
+        _password_case(prk_none, "length-8", "github.com", length=8),
+        _password_case(prk_none, "length-128", "github.com", length=128),
+        _password_case(prk_none, "no-specials", "github.com", classes=7),
+        _password_case(prk_none, "no-digits", "github.com", classes=11),
+        _password_case(prk_none, "no-upper", "github.com", classes=13),
+        _password_case(prk_none, "no-lower", "github.com", classes=14),
+        _password_case(prk_none, "digits-only-6", "github.com", length=6, classes=4),
+        _password_case(prk_none, "lower-only", "github.com", classes=1),
+        _password_case(prk_none, "specials-only", "github.com", classes=8),
+        _password_case(prk_none, "free-form-site", "ufpb-sigaa"),
+        _password_case(prk_none, "punycode-site", "xn--bcher-kva.de", login="josé"),
+        _password_case(prk_key, "keyfile-factor", "github.com"),
+    ]
+    probe = _find(prk_none, lambda c: c["candidate_rejections"] >= 3, length=8)
+    probe["label"] = "class-rejection-3-or-more"
+    passwords.append(probe)
+    probe = _find(prk_none, lambda c: c["candidate_rejections"] == 0 and c["byte_rejections"] == 0)
+    probe["label"] = "no-rejection-at-all"
+    passwords.append(probe)
+    probe = _find(prk_none, lambda c: c["byte_rejections"] >= 6)
+    probe["label"] = "byte-rejection-6-or-more"
+    passwords.append(probe)
+
+    site_args = dict(site="example.org", login="fulano", counter=3)
+    purposes = []
+    for purpose, prk_name, length, kwargs in [
+        ("totp", "keyfile", 20, site_args),
+        ("ssh-ed25519", "none", 32, site_args),
+        ("ssh-checkint", "none", 4, site_args),
+        ("tls-ed25519", "none", 32, site_args),
+        ("tls-serial", "none", 19, site_args),
+        ("tls-rsa-p", "none", 128, dict(site_args, extra=derive.rsa_extra(2048, 0))),
+        ("tls-rsa-p", "none", 128, dict(site_args, extra=derive.rsa_extra(2048, 1))),
+        ("tls-rsa-q", "none", 128, dict(site_args, extra=derive.rsa_extra(2048, 0))),
+        ("tls-rsa-p", "none", 256, dict(site_args, extra=derive.rsa_extra(4096, 0))),
+        ("pgp-ed25519", "none", 32, site_args),
+        ("pgp-ctime", "none", 4, site_args),
+        ("fingerprint", "none", 3, {}),
+        ("journal-recovery", "none", 32, dict(extra=bytes(range(16)))),
+        ("keyfile-wrap", "none", 32, {}),
+    ]:
+        prk = prk_key if prk_name == "keyfile" else prk_none
+        extra = kwargs.get("extra", b"")
+        purposes.append({
+            "purpose": purpose, "prk": prk_name, "length": length,
+            "site": kwargs.get("site", ""), "login": kwargs.get("login", ""),
+            "counter": kwargs.get("counter", 0), "extra_hex": extra.hex(),
+            "info_hex": derive.info(purpose, **kwargs).hex(),
+            "expected_hex": derive.okm(prk, purpose, length, **kwargs).hex(),
+        })
+
+    return {
+        "format_version": FORMAT_VERSION,
+        "spec": "ADR-0009 §2-§5",
+        "alg": derive.ALG,
+        "argon2": {
+            "type": "argon2id", "version": derive.ARGON2_VERSION,
+            "time_cost": derive.ARGON2_TIME_COST, "memory_kib": derive.ARGON2_MEMORY_KIB,
+            "parallelism": derive.ARGON2_PARALLELISM, "tag_bytes": derive.K0_BYTES,
+        },
+        "encoding_notes": [
+            "LP(x) = U16 big-endian length || bytes; strings are UTF-8.",
+            "Sampling reads the stream as UNSIGNED bytes 0..255.",
+            "Charset order is lower + upper + digits + \"!@#$%^&*()_+-=.\" and is load-bearing.",
+            "A candidate password missing an enabled class is discarded whole; the next one "
+            "continues from the same stream position.",
+        ],
+        "encoding": [
+            {"lp_of_utf8": text, "expected_hex": derive.lp(text).hex()}
+            for text in ["", "a", "ç", "地球", derive.ALG]
+        ],
+        "stretch": [_stretch_case(*args) for args in STRETCH_INPUTS],
+        "fixed_k0_hex": FIXED_K0.hex(),
+        "fixed_keyfile_hex": FIXED_KEYFILE.hex(),
+        "extract": [
+            {"kind": "none", "factor_hex": "",
+             "factor_tag_hex": derive.factor_tag().hex(), "prk_hex": bytes(prk_none).hex()},
+            {"kind": "keyfile", "factor_hex": FIXED_KEYFILE.hex(),
+             "factor_tag_hex": derive.factor_tag(derive.FACTOR_KEYFILE, FIXED_KEYFILE).hex(),
+             "prk_hex": bytes(prk_key).hex()},
+        ],
+        "purposes": purposes,
+        "passwords": passwords,
+        "fingerprint": {"prk": "none", "expected": derive.fingerprint(prk_none)},
+        "totp": [
+            {"prk": "none", "site": "github.com", "login": "", "counter": 1,
+             "expected_base32": derive.totp_secret(prk_none, "github.com")},
+            {"prk": "keyfile", "site": "example.org", "login": "fulano", "counter": 3,
+             "expected_base32": derive.totp_secret(prk_key, "example.org", "fulano", 3)},
+        ],
+    }
+
+
 BUILDERS = {
     "canonical.json": build_canonical,
+    "derivation.json": build_derivation,
 }
 
 

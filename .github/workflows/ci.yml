@@ -43,6 +43,9 @@ jobs:
       - name: Verify the golden vectors are up to date
         run: python tools/generate_vectors.py --check
 
+      - name: Verify the v3 golden vectors are up to date
+        run: python tools/generate_vectors_v3.py --check
+
       - name: Verify the console script resolves
         run: passweird --help
 

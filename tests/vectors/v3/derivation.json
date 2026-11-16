@@ -1,0 +1,573 @@
+{
+ "format_version": 1,
+ "spec": "ADR-0009 §2-§5",
+ "alg": "passweird-v3/argon2id-v19-m262144-t3-p4/hkdf-sha512",
+ "argon2": {
+  "type": "argon2id",
+  "version": 19,
+  "time_cost": 3,
+  "memory_kib": 262144,
+  "parallelism": 4,
+  "tag_bytes": 64
+ },
+ "encoding_notes": [
+  "LP(x) = U16 big-endian length || bytes; strings are UTF-8.",
+  "Sampling reads the stream as UNSIGNED bytes 0..255.",
+  "Charset order is lower + upper + digits + \"!@#$%^&*()_+-=.\" and is load-bearing.",
+  "A candidate password missing an enabled class is discarded whole; the next one continues from the same stream position."
+ ],
+ "encoding": [
+  {
+   "lp_of_utf8": "",
+   "expected_hex": "0000"
+  },
+  {
+   "lp_of_utf8": "a",
+   "expected_hex": "000161"
+  },
+  {
+   "lp_of_utf8": "ç",
+   "expected_hex": "0002c3a7"
+  },
+  {
+   "lp_of_utf8": "地球",
+   "expected_hex": "0006e59cb0e79083"
+  },
+  {
+   "lp_of_utf8": "passweird-v3/argon2id-v19-m262144-t3-p4/hkdf-sha512",
+   "expected_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132"
+  }
+ ],
+ "stretch": [
+  {
+   "label": "ascii",
+   "master": "minha senha mestra",
+   "boost": "cavalo bateria grampo correto girassol",
+   "user_id": "fulano@example.com",
+   "canonical": {
+    "master": "minha senha mestra",
+    "boost": "cavalo bateria grampo correto girassol",
+    "user_id": "fulano@example.com"
+   },
+   "argon2_password_hex": "00126d696e68612073656e6861206d65737472610026636176616c6f2062617465726961206772616d706f20636f727265746f206769726173736f6c",
+   "argon2_salt_hex": "83c29817fce494f25c4839e91122eace7e5b5da6271b43d6c62296862eaae45b",
+   "k0_hex": "9127ee9fe9c9cd8df3ee4edfa7ee2a94def45077e7f1734d60903adfa09416674441687f9aa9a08f5d733a2fbabe0ae4659304d1be96347dd963f9cc95fce27b",
+   "prk_none_hex": "71a5a962d4d176542dd5011d92accad95580191f7255167cbaa9e4f578ee3e134c5666e866683d57e5a3acf7ad5f70658f2697c84eace69750acd60dc4a6a55f",
+   "fingerprint": "meto-loga",
+   "password_github": "L02EpC!MIu*mW980Z("
+  },
+  {
+   "label": "unicode",
+   "master": "señhã-mestra-ç∂é 地球",
+   "boost": "água pão maçã coração avó",
+   "user_id": "José@Exemplo.BR",
+   "canonical": {
+    "master": "señhã-mestra-ç∂é 地球",
+    "boost": "água pão maçã coração avó",
+    "user_id": "josé@exemplo.br"
+   },
+   "argon2_password_hex": "001d7365c3b168c3a32d6d65737472612dc3a7e28882c3a920e59cb0e790830020c3a16775612070c3a36f206d61c3a7c3a320636f7261c3a7c3a36f206176c3b3",
+   "argon2_salt_hex": "564a6491e35bc2bfe0572be1ec060cba85bf979df2e1af95c83a3013181d8568",
+   "k0_hex": "525b7aaa8ff8447b6eb49bfae4b74875bf5ba4faf681ad40d4796160a596b5057fed30641592b03c103482a6a182bcb6d1594f0d79e282b6b588681c2878a226",
+   "prk_none_hex": "f08dba8bff770c6e098a3a03c144b42a37136ae9552f7ff480afbb2c09f776a93f9121c13fd5ebd57a4d87b6eaa61891b8ec4d1da2280d65da590db20194423d",
+   "fingerprint": "posi-lile",
+   "password_github": "AfmTR5@14W6YCplL)%"
+  },
+  {
+   "label": "needs-canonicalisation",
+   "master": "café ",
+   "boost": "  Cavalo   Bateria\tGrampo ",
+   "user_id": "  Fulano@Example.COM ",
+   "canonical": {
+    "master": "café ",
+    "boost": "cavalo bateria grampo",
+    "user_id": "fulano@example.com"
+   },
+   "argon2_password_hex": "0006636166c3a9200015636176616c6f2062617465726961206772616d706f",
+   "argon2_salt_hex": "83c29817fce494f25c4839e91122eace7e5b5da6271b43d6c62296862eaae45b",
+   "k0_hex": "2417c10384c9d0cd61a6794bd63e515fffbe929f377d4b312950080896d6d0176c72b6f93d4dcf51208a7e163f70433e1b344f686428b0fd95764e35c13db95d",
+   "prk_none_hex": "cc3b321ff12707f7907a65d1af46eb70c0ecb65734a02ac4eec95f0ada59b919238b25dd7a55c28b064497bafe1f95271f4baf36793edfb489de007db8c8acb2",
+   "fingerprint": "nafe-sopo",
+   "password_github": "nj*hc!-W&Lkg_JrC=9"
+  }
+ ],
+ "fixed_k0_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+ "fixed_keyfile_hex": "6465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80818283",
+ "extract": [
+  {
+   "kind": "none",
+   "factor_hex": "",
+   "factor_tag_hex": "199b626adccc091f440ceebe5a40986d43c8b833057d394b78dcb5a31e31e0b3fee890d37417252a0bc571e12f7682703ffc7ab2fc00fb418a5e7b85528c426e",
+   "prk_hex": "2cf50f2ed175008d896502ec61e0b6b39aa8a36e605a61bb6e7ab2278bb439e79868f77ed3345ea6fa7faf1677390975d88965bc00cba361073afab229750df5"
+  },
+  {
+   "kind": "keyfile",
+   "factor_hex": "6465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80818283",
+   "factor_tag_hex": "69c91de97a3fc854619d8bbf28b3b2f84a160cc605bc0205a146d0de785ca1b5c6d409ceba5a145f6eb0534db30daab004d29f2f0b1c406e858f518052252866",
+   "prk_hex": "a280db3e1437ebcad416bbcafc82f17d9fa5766f2f4ac877e87c94f1f3eb5b5a00e76830111e44d0311f03571a64d8459e40a77f1f7fe0bc71d9147b530a90fe"
+  }
+ ],
+ "purposes": [
+  {
+   "purpose": "totp",
+   "prk": "keyfile",
+   "length": 20,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d7368613531320004746f7470000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "1eeace01fb6fa3ba23f52d80a34c073c233c52e4"
+  },
+  {
+   "purpose": "ssh-ed25519",
+   "prk": "none",
+   "length": 32,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000b7373682d65643235353139000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "063fa729a4618d3a3cc6da00a5dfa47febde6d832d05ecccea564314127c0d16"
+  },
+  {
+   "purpose": "ssh-checkint",
+   "prk": "none",
+   "length": 4,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000c7373682d636865636b696e74000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "11196325"
+  },
+  {
+   "purpose": "tls-ed25519",
+   "prk": "none",
+   "length": 32,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000b746c732d65643235353139000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "c17142780d6373cf15965323e97ed12327e92418b0c71597d5778d027183a162"
+  },
+  {
+   "purpose": "tls-serial",
+   "prk": "none",
+   "length": 19,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000a746c732d73657269616c000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "51c4c161ec50f5ed6dcce23ebd6f07c858429b"
+  },
+  {
+   "purpose": "tls-rsa-p",
+   "prk": "none",
+   "length": 128,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "080000000000",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d7368613531320009746c732d7273612d70000b6578616d706c652e6f7267000666756c616e6f000000030006080000000000",
+   "expected_hex": "38b70c3adc261cd288914439730e24b287feba57bde89f0daba47f77382bb7b12e0e55384a33f6fa8be4483c5481718e61bca13a18ff9b8a9ee99a6aa99b857b3fc220d9f86fbfdb7856777ea8c92759740b661f78f61ff6b7a697ebdbab9ec445ebe87a49d5fff71634f48db38785349b218b66013b2b38608d0dfaaf39af71"
+  },
+  {
+   "purpose": "tls-rsa-p",
+   "prk": "none",
+   "length": 128,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "080000000001",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d7368613531320009746c732d7273612d70000b6578616d706c652e6f7267000666756c616e6f000000030006080000000001",
+   "expected_hex": "72a9794cc532f90ed543abcebca0c1ddbc75821230100ea17cab39dd1605ab0654df7df499d02e7885612445d86c0f7005eb7220b13a009f19bccf627afc04423e487fbf8d9bb6bd398c3e2fd651a4ae76d03bc894bf86cd7174823953f360558aea7373075d289a17dea9b8aa16ea4dc3af3026a60fd696e2f17d5801859136"
+  },
+  {
+   "purpose": "tls-rsa-q",
+   "prk": "none",
+   "length": 128,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "080000000000",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d7368613531320009746c732d7273612d71000b6578616d706c652e6f7267000666756c616e6f000000030006080000000000",
+   "expected_hex": "d0e7dd02db0740164008526e28691fde8e5adbc4e5132d2d91bae4f0ce83bc7e3648522683f1138f8e740cd4a525bd7b079be05a939a3c43972f27f19441fb331fa98f9c5bb77b11969e94fa550b8e820ee4b496ab4637b94fe778e53e5ce7164aab45c4aa50eca0a6be0e3fb5e647c99eeccf04bbb2f87656a4b412a0e729d9"
+  },
+  {
+   "purpose": "tls-rsa-p",
+   "prk": "none",
+   "length": 256,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "100000000000",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d7368613531320009746c732d7273612d70000b6578616d706c652e6f7267000666756c616e6f000000030006100000000000",
+   "expected_hex": "7e53f338e503e0aa4c504246a2f2a546446fbe5a1345926fc7aca3058978fd1b368a1d4e5262a14d38e3e576951871bbacbec091cc4d7b7e348a0c60b6bff6ac72e3c971d2e2efce13fd4565d50fa949e587ddd2dcb083b43964632ecd26af650b445bbb3ec23ac45c023f650c13a0dd52d7a58def00241d424c64dc2e834c425b48f57acf99536cf7d9a97a3c9d1a484bf843804fdc36bd2b85ba4d13b55b18cf0a4df5aa18e2da09a4cd0569b16e3f0aeed5b58fb26472a159a670c350d8165675e581416360b9501c6d9d1dc053bbdf7beb8de497d64d58297291f8120b8fe6b995d8fe72c29c3fb5dde5b7565cf80ae7cce3ee9f0580f78875eb9799e162"
+  },
+  {
+   "purpose": "pgp-ed25519",
+   "prk": "none",
+   "length": 32,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000b7067702d65643235353139000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "dba804d3f1c1a273ccc5f087162ad93a6ee3ddf21675449ecc1abc21bc208afa"
+  },
+  {
+   "purpose": "pgp-ctime",
+   "prk": "none",
+   "length": 4,
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d73686135313200097067702d6374696d65000b6578616d706c652e6f7267000666756c616e6f000000030000",
+   "expected_hex": "9b1c6e44"
+  },
+  {
+   "purpose": "fingerprint",
+   "prk": "none",
+   "length": 3,
+   "site": "",
+   "login": "",
+   "counter": 0,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000b66696e6765727072696e7400000000000000000000",
+   "expected_hex": "a505f2"
+  },
+  {
+   "purpose": "journal-recovery",
+   "prk": "none",
+   "length": 32,
+   "site": "",
+   "login": "",
+   "counter": 0,
+   "extra_hex": "000102030405060708090a0b0c0d0e0f",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d73686135313200106a6f75726e616c2d7265636f7665727900000000000000000010000102030405060708090a0b0c0d0e0f",
+   "expected_hex": "acf47818dbc8f1ce4820d59ce8ee1cc7ad6ef85c10dad0771fd6a8d055cedf72"
+  },
+  {
+   "purpose": "keyfile-wrap",
+   "prk": "none",
+   "length": 32,
+   "site": "",
+   "login": "",
+   "counter": 0,
+   "extra_hex": "",
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000c6b657966696c652d7772617000000000000000000000",
+   "expected_hex": "7b30495f62756e7d83b739dfb2c05ead343643f2dbfd4709db8276aee0e58755"
+  }
+ ],
+ "passwords": [
+  {
+   "label": "default",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120f01",
+   "stream_first_64_hex": "5d0fcdcf9379ea65bbb4500ddf8aaa5cbd8e1aba71f661e9f2318d32206b6c1658b44326c6b7b41e67d8f403ebbff4403f25fb916160bcdbae36ea351b803da3",
+   "stream_sha256": "0984815de48dfa08e45fec07637569601eea5df179f61c0b660496cfd7a6d0f6",
+   "byte_rejections": 1,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 19,
+   "expected_password": "qpZ1(SyHAdn*9qpJ$A"
+  },
+  {
+   "label": "with-login",
+   "site": "github.com",
+   "login": "fulano",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d000666756c616e6f000000010003120f01",
+   "stream_first_64_hex": "8828d49f659771715dc8b75cf1704bbf90ff12a7310b80ca8e83f3b2c70807cee965715492ad414e64fea1bfe9ad1e223191a471da5df905194f880cee0da2a2",
+   "stream_sha256": "749fa71f3e206e2faedabdc5e269006a0cc36b8ce69d95afea56dfc3d073138e",
+   "byte_rejections": 2,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 20,
+   "expected_password": "7O6fy-KKqUDpJ=L^sn"
+  },
+  {
+   "label": "counter-2",
+   "site": "github.com",
+   "login": "",
+   "counter": 2,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000020003120f01",
+   "stream_first_64_hex": "37a9baee051acae4a76cf0c080e5a899f6f3e358da38531fc903509db581e7cf75220ed4fc83fa971942bbdf0a716f87cfe5561b7b7ad1a4ec78ea6a90af3914",
+   "stream_sha256": "99f8b1cce3acac581bbbbc10d3d4c73b1400d8942c5387580234d6377a831aaf",
+   "byte_rejections": 4,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 22,
+   "expected_password": "3pGfAW-nFMZ=o.+l#4"
+  },
+  {
+   "label": "counter-max",
+   "site": "github.com",
+   "login": "",
+   "counter": 4294967295,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000ffffffff0003120f01",
+   "stream_first_64_hex": "bd62e4a16203a1ed1a8ac4acac89e85fabed92ecb1d955e0cf968a86b510277bc2d634705cb9aebe827c811ba7e2df6a947a16241c25755a8ca96eccd81dff50",
+   "stream_sha256": "158337515650c166cf5734937786f974c5949ac736b6dce43b4c2a38c6bec3ed",
+   "byte_rejections": 4,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 22,
+   "expected_password": "Jv-hvdhA9Qss8sr*x@"
+  },
+  {
+   "label": "length-8",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 8,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003080f01",
+   "stream_first_64_hex": "bce1d1e23ca2e89aac5954d99e031407e1b20cf6ccd63faccd5db5d4de015acaf0c1cb8c3ed8c503c78fab8f019c6e8abe57bce131deba000f0eeca40ab566f3",
+   "stream_sha256": "4242979c7a5550073e97bc8af67df897eba1ec3acbffaece45fdaf549267e1bb",
+   "byte_rejections": 1,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 9,
+   "expected_password": "I)3_8ias"
+  },
+  {
+   "label": "length-128",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 128,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003800f01",
+   "stream_first_64_hex": "e5474f5f780c63cadcf415c14dd77e55f0318517526db70ae50c35c07d8bd37cb26b282fa6b33218338c06600618ced6624de81e97dd2389f8fa44f49808ab8f",
+   "stream_sha256": "263bc0939f3a2dce496d9cd2436f15d8b66ebfa03eab4561cde0d6c9da70893f",
+   "byte_rejections": 14,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 142,
+   "expected_password": "=)csRmwW%vNa9XiX4xfGDk=m1MW!5VyEOVmzYyZ@gtgy08vaE-^J8&=ir%p*MyrBw@%d&gCDb%0qliU_pu-w$E*KHHiIzw1SIeQ3wMYA%mW$^-YpAHD7pA^dag3Zv9r6"
+  },
+  {
+   "label": "no-specials",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 7,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120701",
+   "stream_first_64_hex": "7652c86dd05ec6933e49906f8471cec6fa8457d7c697e3a447a76fe6d2783e4987c811f67f172389bd0a749d55f6dca1c66739db5a58a551baa0967e7f5dd745",
+   "stream_sha256": "fd3d2ead1d768a23a99cfdb6409ceacfe472cac8c0c70f531f6cfb8b5567891e",
+   "byte_rejections": 1,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 19,
+   "expected_password": "4uoVwGmxaluXiZumiz"
+  },
+  {
+   "label": "no-digits",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 11,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120b01",
+   "stream_first_64_hex": "d1977042deafee5c2592d40b7ccb216d0829413be9a260909bf22543ab2445783a4587b1db3cbd7e12ebdfbb7f0303ab5264a505e78e7aa7f808a3d61660685c",
+   "stream_sha256": "a3bbcab2dbc8eb845caab1463520107143b59fba0e2a3525661cdb553f62263c",
+   "byte_rejections": 6,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 24,
+   "expected_password": "rT.PzLml^HQiP=*CDk"
+  },
+  {
+   "label": "no-upper",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 13,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120d01",
+   "stream_first_64_hex": "11ee748d530844c60ae47b9165d61893de100c9b98a4f77e902e4050e3b1b23022958653ec19849eaa842c313f1df7e71fa13b15a989d6bbe8eb35a0563621ce",
+   "stream_sha256": "5e351749cce96435ba9ef39d2afe00166b43e9ee7f8155f297f1108fb624611b",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 18,
+   "expected_password": "r8o$6ir)kyv*.ky)sq"
+  },
+  {
+   "label": "no-lower",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 14,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120e01",
+   "stream_first_64_hex": "2b9a3ed4ebb4dcdcd315f88f12fdfb07dffe7f6271583f2b5396285ebc2f78320463cbce80c5d0d428b4a62b69705a66dbd7c5d9608000bfbbd934a70fcccffa",
+   "stream_sha256": "3e5d8591d5b1a36a81eb08d952427377f069f3d458586a8c86d028e084fb8b98",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 18,
+   "expected_password": "*BLI51QQHV(^S=+HT."
+  },
+  {
+   "label": "digits-only-6",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 6,
+   "classes": 4,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003060401",
+   "stream_first_64_hex": "e7e2016ca21b10cfa63dda165ce8c6a71317bd93abed64f23b2f1ae31463b66580142b376106ea460a619be0a8a3115ebf4d73ddd06b7a9a823886a7d2a2017a",
+   "stream_sha256": "7c912d9a4cec5144bae9e2ec44b4b2092dc32d541a7782eb7d3f4874fe4fd450",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 6,
+   "expected_password": "161827"
+  },
+  {
+   "label": "lower-only",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 1,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120101",
+   "stream_first_64_hex": "eb23dfb770b09b2ddcc6fb5a1a9bc5dbddf610fdef25e2913713611e372b324959c05e8217e869a77125c07f80dc18625996f51c1ebadfee25d21fda9e2992c7",
+   "stream_sha256": "8fdebed72adda68a31672c900f47d26d1f0d38160167f2a600db407f99fdb200",
+   "byte_rejections": 5,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 23,
+   "expected_password": "jpbiuztmqmazplnqls"
+  },
+  {
+   "label": "specials-only",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 8,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120801",
+   "stream_first_64_hex": "78ed6b8544fd0ad01b52725beec015215784ded65878b09d607387c0bb3633732916064e3c913815a52f6220329895ccedd692b51d6582c1581619a9e740d000",
+   "stream_sha256": "ebf132e5df893631258aed7d20581c126457e30b35bd3af848188825e85bd2cb",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 18,
+   "expected_password": "!-#=(=_=-*)@=-&$--"
+  },
+  {
+   "label": "free-form-site",
+   "site": "ufpb-sigaa",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a756670622d73696761610000000000010003120f01",
+   "stream_first_64_hex": "e98c3b30afd0d4bb340d8e8d99b7dd73e55715c60e845b093931ed886b5719c74954d258f6e14dacc40a852a14c09847c2f5e573621c823453e9858a6699a1a8",
+   "stream_sha256": "a2c2ea400312aebf0f15f9b4146d433fe189cf457369bc660c78ae7b7c8df062",
+   "byte_rejections": 1,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 19,
+   "expected_password": "@7Wv26H0n$#.D^M=kv"
+  },
+  {
+   "label": "punycode-site",
+   "site": "xn--bcher-kva.de",
+   "login": "josé",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f72640010786e2d2d62636865722d6b76612e646500056a6f73c3a9000000010003120f01",
+   "stream_first_64_hex": "6670dd109927caa6518ad5986f64564a42137c539cf9d406ed8247df922a26b1d7bc78cbcd2f47ff65179b0f6c97f86f45b279498c6e3765e95f829048e578a7",
+   "stream_sha256": "2f01e45aead0c3c5dd341d8575365de78d0cc17468e4a247cd7e079787e2ff66",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 18,
+   "expected_password": "zJ^q.NWme97=Ixj-%t"
+  },
+  {
+   "label": "keyfile-factor",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000a6769746875622e636f6d0000000000010003120f01",
+   "stream_first_64_hex": "5a1de863ef86a4d562bf03ef7b43732ce32aedc1cbbcec9baa1bc3da3abf6fd1200c87646b97e229b36c21d252a112188d4d9d7b642c9684a5cf38027b5b1176",
+   "stream_sha256": "ec4ea4315ee3bcc7ea0c1af5d6e9ea61d12f17d12dd29f29fb5bdb49c8ee4c66",
+   "byte_rejections": 4,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 22,
+   "expected_password": "nDw5k7vLdU^MS+QNXI"
+  },
+  {
+   "label": "class-rejection-3-or-more",
+   "site": "probe-1.example",
+   "login": "",
+   "counter": 1,
+   "length": 8,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000f70726f62652d312e6578616d706c650000000000010003080f01",
+   "stream_first_64_hex": "27f72b707759b6576846110d19685518633c1401a61f3a2d1312d1fd2dd436ea33ba3fd1bad4fda533a52c7eb08bcd37e6f1fa06fec4f7b28968e3b7b4548d05",
+   "stream_sha256": "794891690658fd1fb785a73d66408113decaa32b109fa1bd87402b9aea10c9d7",
+   "byte_rejections": 3,
+   "candidate_rejections": 3,
+   "stream_bytes_used": 35,
+   "expected_password": "s3T62ZG@"
+  },
+  {
+   "label": "no-rejection-at-all",
+   "site": "probe-2.example",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264000f70726f62652d322e6578616d706c650000000000010003120f01",
+   "stream_first_64_hex": "6c1b3727c579cf6b58da476607ac36a63f70a30d4e92af456cb76481ac277a4dd63d04fb01c60ea0d5abed849cbcf9504a37d6e37c004a89fdd51f238cb735f4",
+   "stream_sha256": "9b63bf9ce635940a70208fcc36ca5b7eb93dee6fcee59bba99c2401978ff03f6",
+   "byte_rejections": 0,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 18,
+   "expected_password": "FB3NRS1El#)zhs2m@J"
+  },
+  {
+   "label": "byte-rejection-6-or-more",
+   "site": "probe-21.example",
+   "login": "",
+   "counter": 1,
+   "length": 18,
+   "classes": 15,
+   "info_hex": "00337061737377656972642d76332f6172676f6e3269642d7631392d6d3236323134342d74332d70342f686b64662d736861353132000870617373776f7264001070726f62652d32312e6578616d706c650000000000010003120f01",
+   "stream_first_64_hex": "74dff4f2c87a3dc4d8efe9aba69558f8d75bb002ec90d01ffc307810c0279e186d069f4d53996d85e203154ac711f2d28cfb0839e38c708203c7ce6a5837eb6e",
+   "stream_sha256": "84d3323d3c6f28b780a09623872be658e50587e403d09579a04aba6139a02fea",
+   "byte_rejections": 6,
+   "candidate_rejections": 0,
+   "stream_bytes_used": 24,
+   "expected_password": "N*UT9Q!rm_l9owc^2F"
+  }
+ ],
+ "fingerprint": {
+  "prk": "none",
+  "expected": "peha-josi"
+ },
+ "totp": [
+  {
+   "prk": "none",
+   "site": "github.com",
+   "login": "",
+   "counter": 1,
+   "expected_base32": "QKF5Q5UGPNILPMRDMM3RLJIHH3FW65RT"
+  },
+  {
+   "prk": "keyfile",
+   "site": "example.org",
+   "login": "fulano",
+   "counter": 3,
+   "expected_base32": "D3VM4AP3N6R3UI7VFWAKGTAHHQRTYUXE"
+  }
+ ]
+}
