@@ -15,6 +15,10 @@ superseded by a new ADR.
 | [0007](0007-verificacao-de-senha-contra-o-log.md) | Password verification against the log | Proposed |
 | [0008](0008-kotlin-multiplatform-port.md) | Kotlin Multiplatform port | Proposed |
 | [0009](0009-v3-key-stretching-and-derivation.md) | v3: memory-hard stretching, canonical inputs and a tiered, syncable journal | Accepted |
+| [0010](0010-linux-desktop-application.md) | A Linux desktop application over the v3 core | Accepted |
+| [0011](0011-android-application-for-v3.md) | The Android application for v3 (Kotlin) | Accepted |
+| [0012](0012-windows-application.md) | The Windows application | Proposed |
+| [0013](0013-profiles.md) | Profiles: several independent installations on one device | Accepted |
 
 The execution plan for the proposed ADRs is in
 [`../PLANO-DE-ACAO.md`](../PLANO-DE-ACAO.md).
