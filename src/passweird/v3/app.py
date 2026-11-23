@@ -14,10 +14,12 @@ Rules this module enforces:
   - the canonical site and the fingerprint are shown before any password;
   - a journal entry's counter, length and classes win over command-line
     flags unless --force is given;
-  - every command acts on one profile (ADR-0013), resolved once by main.py.
+  - every command acts on one profile (ADR-0013), resolved once by main.py;
+  - a keyfile pinned to the profile is checked before Argon2id runs.
 """
 import datetime
 import getpass
+import hashlib
 import json
 import os
 import sys
@@ -166,6 +168,116 @@ def apply_keyfile(session, path):
     except keys.KeyError_ as exc:
         raise CliError(f"keyfile {path}: {exc}") from None
     session.use_keyfile(factor)
+
+
+# --- keyfile pinned to the profile (ADR-0013 §9) -----------------------------
+#
+# config may hold "key_file" (absolute path) and "key_file_sha256" (hex SHA-256
+# of the file's bytes). The hash is no oracle: the file is a random nonce and a
+# random factor under AES-GCM, and no guess of a secret recomputes it.
+
+_KEYFILE_LEN = len(keys.MAGIC_KEYFILE) + 1 + keys.NONCE_BYTES + derive.KEYFILE_BYTES + keys.TAG_BYTES
+
+
+def _absolute(path):
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def _sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def is_pinned(config):
+    return bool((config or {}).get("key_file_sha256"))
+
+
+def read_keyfile(path):
+    """Reads a keyfile and checks, without any secret, that it is one."""
+    try:
+        data = fileio.read_bytes(path)
+    except FileNotFoundError:
+        raise CliError(f"keyfile not found: {path}") from None
+    except OSError as exc:
+        raise CliError(f"cannot read keyfile {path}: {exc.strerror or exc}") from None
+    if len(data) != _KEYFILE_LEN or data[:4] != keys.MAGIC_KEYFILE or data[4] != keys.FORMAT_VERSION:
+        raise CliError(f"{path} is not a Passweird v3 keyfile")
+    return data
+
+
+def pinned_keyfile(config, key_file=None):
+    """
+    The pinned keyfile as (path, bytes), or None when the profile has no pin.
+    Called before Argon2id: a missing, unreadable or different file stops the
+    run before any secret is typed. --key-file is accepted only for a file
+    with the pinned hash (a copy kept elsewhere).
+    """
+    if not is_pinned(config):
+        return None
+    digest, pinned_path = config["key_file_sha256"], config.get("key_file") or ""
+    if key_file:
+        path = _absolute(key_file)
+        data = read_keyfile(path)
+        if _sha256(data) != digest:
+            raise CliError(
+                f"{path} is not the keyfile pinned to this profile ({pinned_path}). Use that file or a "
+                "copy of it; --pin-key-file and --unpin-key-file change the pin"
+            )
+        return path, data
+    try:
+        data = fileio.read_bytes(pinned_path)
+    except FileNotFoundError:
+        raise CliError(
+            f"the keyfile pinned to this profile is missing: {pinned_path}. There is no derivation "
+            "without it: restore it, give a copy with --key-file, or move the pin with --pin-key-file NEWPATH"
+        ) from None
+    except OSError as exc:
+        raise CliError(f"cannot read the keyfile pinned to this profile, {pinned_path}: "
+                       f"{exc.strerror or exc}") from None
+    if _sha256(data) != digest:
+        raise CliError(
+            f"{pinned_path} is not the keyfile pinned to this profile: its contents changed. "
+            "Restore the original (a copy kept elsewhere works with --key-file)"
+        )
+    return pinned_path, data
+
+
+def use_keyfile(session, path, data):
+    """Opens a keyfile under the session's prk_none: one made for other
+    secrets (or another user id) is refused by its GCM tag."""
+    try:
+        factor = keys.open_keyfile(data, session.prk_none)
+    except keys.WrongSecret:
+        raise CliError(f"keyfile {path} does not open with this master password and boost "
+                       "(made for other secrets or another user id, or modified)") from None
+    except keys.KeyError_ as exc:
+        raise CliError(f"keyfile {path}: {exc}") from None
+    session.use_keyfile(factor)
+
+
+def open_derivation(config, prompter, user_id, key_file):
+    """Derivation tier with the factor this profile selects: its pinned
+    keyfile (checked before Argon2id), or --key-file as given."""
+    pinned = pinned_keyfile(config, key_file)
+    session = open_session(prompter, user_id)
+    try:
+        if pinned is not None:
+            use_keyfile(session, *pinned)
+        else:
+            apply_keyfile(session, key_file)
+    except BaseException:
+        session.close()
+        raise
+    return session
+
+
+def pin(config, path, data):
+    config["key_file"] = path
+    config["key_file_sha256"] = _sha256(data)
+
+
+def unpin(config):
+    config.pop("key_file", None)
+    config.pop("key_file_sha256", None)
 
 
 def read_keys_file(config):
@@ -322,6 +434,12 @@ def cmd_init(args, prompter, profile):
         if existing is not None:
             profiles.check_journal_owner(profile, journal_dir, existing)
         raise CliError(f"{journal_dir} already holds a journal; use --join to add this device to it")
+    # --init --key-file pins at creation (ADR-0013 §9). The file is read and
+    # checked here, before any secret is typed and before Argon2id runs.
+    keyfile = None
+    if args.key_file:
+        path = _absolute(args.key_file)
+        keyfile = (path, read_keyfile(path))
 
     user_id = fail_canonical(canon.user_id, args.user_id or prompter.text("User id (e.g. your e-mail)"))
     _warn_same_user_id(profile, user_id)
@@ -332,6 +450,8 @@ def cmd_init(args, prompter, profile):
 
     session = derive.Session(derive.stretch(master_c, boost_c, user_id), user_id)
     try:
+        if keyfile is not None:
+            use_keyfile(session, *keyfile)          # refused before anything is written
         journal_id, dek, device_id = keys.new_journal_id(), keys.new_dek(), journal.new_device_id()
         profile.ensure_directory()
         fileio.ensure_private_dir(journal_dir)
@@ -342,10 +462,14 @@ def cmd_init(args, prompter, profile):
             "journal_dir": journal_dir, "device_id": device_id.hex(),
             "length": DEFAULT_LENGTH, "classes": DEFAULT_CLASSES,
         }
+        if keyfile is not None:
+            pin(config, *keyfile)
         save_config(profile, config)
         journal.Journal(journal_dir, base_dir(profile), dek, journal_id, device_id)   # creates streams/
         say(f"Initialised. User id: {user_id}")
         say(f"Journal folder (the one to synchronise): {journal_dir}")
+        if keyfile is not None:
+            say(f"Keyfile pinned to this profile: {keyfile[0]}")
         say(f"Fingerprint: {session.fingerprint}")
         say("Learn this fingerprint: it is shown on every run and is how you notice a typo.")
         blob = keys.build_recovery(journal_id, dek, session.prk_none)
@@ -379,8 +503,18 @@ def cmd_join(args, prompter, profile):
         raise CliError("wrong access password") from None
     except (keys.KeyError_, canon.CanonicalError) as exc:
         raise CliError(str(exc)) from None
+    # The pin is local (ADR-0013 §9), so a joining device is asked for it. The
+    # file is only checked to be a keyfile and hashed here; it is opened under
+    # master and boost at the first derivation.
+    answer = args.key_file or prompter.text(
+        "Keyfile the sites of this registry are derived with (path; empty for none)").strip()
+    if answer:
+        path = _absolute(answer)
+        pin(config, path, read_keyfile(path))
     save_config(profile, config)
     say(f"This device joined the journal at {journal_dir} as {config['device_id'][:8]}…")
+    if answer:
+        say(f"Keyfile pinned to this profile: {config['key_file']}")
     say("The user id cannot be checked here: confirm the fingerprint on the first derivation.")
 
 
@@ -411,9 +545,63 @@ def cmd_list_profiles(args, prompter):
         say(f"  Journal folder: {config.get('journal_dir', '?')}")
         say(f"  Device: {str(config.get('device_id', '?'))[:8]}…")
         say(f"  Recovery file: {'kept' if os.path.exists(prof.recovery_path) else 'not kept'}")
+        say(f"  Pinned keyfile: {config.get('key_file') if is_pinned(config) else 'none'}")
     for directory in profiles.unselectable():
         say(f"Note: {directory} holds a configuration, but its name is not a valid profile name "
             f"({profiles.NAME_RULE}); rename the directory to use it.")
+
+
+def cmd_pin_key_file(args, prompter, profile):
+    """
+    ADR-0013 §9. A file with the pinned hash only moves the pin, with no
+    secret: it is the same keyfile. Any other file is opened under master and
+    boost (a keyfile made for other secrets fails its GCM tag), and pinning a
+    registry that already has entries needs --force.
+    """
+    config = require_config(profile)
+    path = _absolute(args.pin_key_file)
+    data = read_keyfile(path)
+    if is_pinned(config) and _sha256(data) == config["key_file_sha256"]:
+        old = config.get("key_file")
+        pin(config, path, data)
+        save_config(profile, config)
+        if old == path:
+            say(f"This keyfile is already pinned to this profile: {path}")
+        else:
+            say(f"Keyfile pin moved to {path} (was {old}). Same keyfile, so no secret was needed.")
+        return
+    session = open_session(prompter, config["user_id"])
+    try:
+        use_keyfile(session, path, data)
+        book = open_journal(profile, config, prompter, session)
+        count = len(book.listing())
+    finally:
+        session.close()
+    if count and not args.force:
+        raise CliError(
+            f"the registry already has {count} entr{'y' if count == 1 else 'ies'}. From now on every "
+            "entry would derive with this keyfile, which is right only if they were already derived "
+            "with it: if so, repeat with --force. To move a registry onto a keyfile, use "
+            "--mass-rekey --new-key-file PATH"
+        )
+    pin(config, path, data)
+    save_config(profile, config)
+    say(f"Keyfile pinned to this profile: {path}")
+    say("Every derivation in this profile now uses it, and stops before stretching if it is")
+    say("missing or changed. Copy it to every device and to a backup.")
+
+
+def cmd_unpin_key_file(args, prompter, profile):
+    config = require_config(profile)
+    if not is_pinned(config) and "key_file" not in config:
+        say("No keyfile is pinned to this profile.")
+        return
+    old = config.get("key_file")
+    unpin(config)
+    save_config(profile, config)
+    say(f"Keyfile pin removed ({old}).")
+    say("WARNING: in this profile, a derivation without --key-file now silently gives other")
+    say("passwords again for every site that was derived with that keyfile.")
 
 
 def _class_mask(args):
@@ -463,9 +651,8 @@ def cmd_generate(args, prompter, profile):
     if counter_explicit and args.bump:
         raise CliError("--counter and --bump cannot be combined")
 
-    session = open_session(prompter, user_id)
+    session = open_derivation(config, prompter, user_id, args.key_file)
     try:
-        apply_keyfile(session, args.key_file)
         book = None if args.no_journal else open_journal(profile, config, prompter, session)
         entry = book.get(site, login, include_deleted=True) if book else None
 
@@ -813,9 +1000,8 @@ def _write_kdbx(path, prompter, entries):
 
 def cmd_export_kdbx(args, prompter, profile):
     config = require_config(profile)
-    session = open_session(prompter, config["user_id"])
+    session = open_derivation(config, prompter, config["user_id"], args.key_file)
     try:
-        apply_keyfile(session, args.key_file)
         book = open_journal(profile, config, prompter, session)
         if args.site:
             selected = [_resolve_entry(book, args.site, args.login)]
@@ -834,6 +1020,31 @@ def cmd_export_kdbx(args, prompter, profile):
         session.close()
 
 
+def _rekey_keyfile_plan(args, config):
+    """
+    ADR-0013 §9: on a pinned profile --mass-rekey must be told what happens to
+    the factor, --new-key-file (becomes the new pin) or --drop-key-file (the
+    pin goes). Neither is assumed. On an unpinned profile --new-key-file keeps
+    its old meaning and pins nothing. Returns the new pin as (path, bytes),
+    read before Argon2id, or None.
+    """
+    pinned = is_pinned(config)
+    if args.new_key_file and args.drop_key_file:
+        raise CliError("--new-key-file and --drop-key-file cannot be combined")
+    if args.drop_key_file and not pinned:
+        raise CliError("--drop-key-file: no keyfile is pinned to this profile")
+    if pinned and not (args.new_key_file or args.drop_key_file):
+        raise CliError(
+            f"a keyfile is pinned to this profile ({config.get('key_file')}). Say what happens to it "
+            "with the new secrets: --new-key-file PATH (a keyfile made for the new secrets; it becomes "
+            "the new pin) or --drop-key-file (no keyfile from now on; the pin is removed)"
+        )
+    if pinned and args.new_key_file:
+        path = _absolute(args.new_key_file)
+        return path, read_keyfile(path)
+    return None
+
+
 def cmd_mass_rekey(args, prompter, profile):
     """
     New master password and/or boost: derives the old and the new password for
@@ -843,10 +1054,15 @@ def cmd_mass_rekey(args, prompter, profile):
     config = require_config(profile)
     if not args.export_kdbx:
         raise CliError("--mass-rekey needs --export-kdbx FILE for the old/new password pairs")
+    new_pin = _rekey_keyfile_plan(args, config)
+    old_pin = pinned_keyfile(config, args.key_file)
     say("OLD secrets:")
     old = open_session(prompter, config["user_id"])
     try:
-        apply_keyfile(old, args.key_file)
+        if old_pin is not None:
+            use_keyfile(old, *old_pin)
+        else:
+            apply_keyfile(old, args.key_file)
         book = open_journal(profile, config, prompter, old)
         say("NEW secrets:")
         master = prompter.secret_twice("New master password")
@@ -857,7 +1073,9 @@ def cmd_mass_rekey(args, prompter, profile):
             raise CliError(str(exc)) from None
         try:
             say(f"New fingerprint: {new.fingerprint}")
-            if args.new_key_file:
+            if new_pin is not None:
+                use_keyfile(new, *new_pin)
+            elif args.new_key_file:
                 apply_keyfile(new, args.new_key_file)
             entries = []
             for e in book.listing():
@@ -877,6 +1095,14 @@ def cmd_mass_rekey(args, prompter, profile):
             print_recovery(blob, profile, config["user_id"])
             if os.path.exists(recovery_path(profile)) or args.keep_recovery_file:
                 store_recovery(profile, blob)
+            if is_pinned(config):
+                if new_pin is not None:
+                    pin(config, *new_pin)
+                    say(f"Keyfile pin moved to {new_pin[0]}, the keyfile of the new secrets.")
+                else:
+                    unpin(config)
+                    say("Keyfile pin removed (--drop-key-file): the new secrets derive without a keyfile.")
+                save_config(profile, config)
         finally:
             new.close()
     finally:

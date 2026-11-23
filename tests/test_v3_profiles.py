@@ -39,12 +39,33 @@ def snapshot(root, skip=None):
             for p in _files(root) if not (skip and p.startswith(str(skip)))}
 
 
+def go_home(monkeypatch, home):
+    home.mkdir(exist_ok=True)
+    for var in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(var, str(home))
+    drive, tail = os.path.splitdrive(str(home))
+    monkeypatch.setenv("HOMEDRIVE", drive)
+    monkeypatch.setenv("HOMEPATH", tail)
+
+
 @pytest.fixture
 def work(fast, cli):
     """A named profile with its own secrets, user id and journal."""
     result = cli(WORK + ["--init", "--user-id", USER2], secrets=INIT2)
     assert result.code == 0, result.err
     return result
+
+
+@pytest.fixture
+def stretches(fast, monkeypatch):
+    """Records every Argon2id stretch, to prove a check ran before it."""
+    calls, inner = [], derive.stretch
+
+    def spy(*args):
+        calls.append(args)
+        return inner(*args)
+    monkeypatch.setattr(derive, "stretch", spy)
+    return calls
 
 
 # --- names -------------------------------------------------------------------
@@ -122,8 +143,8 @@ def test_flag_over_environment_over_default(ready, work, cli, monkeypatch):
 
 @pytest.mark.parametrize("argv", [
     ["github.com"], ["github.com", "--no-journal", "--user-id", USER], ["--list"], ["--show", "x.example"],
-    ["--new-device-id"], ["--gen-keyfile", "k.pw3f", "--user-id", USER],
-    ["--print-recovery"], ["--recover"], ["--change-access-password"],
+    ["--new-device-id"], ["--gen-keyfile", "k.pw3f", "--user-id", USER], ["--pin-key-file", "k.pw3f"],
+    ["--unpin-key-file"], ["--print-recovery"], ["--recover"], ["--change-access-password"],
     ["--export-kdbx", "x.kdbx"], ["--migrate-v2"],
 ])
 def test_unknown_profile_is_an_error_and_creates_nothing(ready, cli, isolated_home, argv, monkeypatch):
@@ -208,13 +229,16 @@ def test_list_profiles(ready, work, cli, isolated_home):
         assert f"User id: {user}" in block
         assert f"Journal folder: {home / 'journal'}" in block
         assert f"Device: {config['device_id'][:8]}" in block and config["device_id"][:9] not in block
-        assert "Recovery file: not kept" in block
+        assert "Recovery file: not kept" in block and "Pinned keyfile: none" in block
 
 
-def test_list_profiles_shows_a_kept_recovery_file(fast, cli):
-    assert cli(WORK + ["--init", "--user-id", USER2, "--keep-recovery-file"], secrets=INIT2).code == 0
+def test_list_profiles_shows_kept_recovery_and_pinned_keyfile(fast, cli, tmp_path):
+    keyfile = tmp_path / "k.pw3f"
+    assert cli(["--gen-keyfile", str(keyfile), "--user-id", USER2], secrets=[MASTER2, BOOST2]).code == 0
+    assert cli(WORK + ["--init", "--user-id", USER2, "--keep-recovery-file", "--key-file", str(keyfile)],
+               secrets=INIT2).code == 0
     out = cli(["--list-profiles"]).out
-    assert out.startswith("work\n") and "Recovery file: kept" in out
+    assert out.startswith("work\n") and "Recovery file: kept" in out and f"Pinned keyfile: {keyfile}" in out
 
 
 def test_recovery_text_names_its_profile(ready, work, cli):
@@ -263,6 +287,7 @@ def _exercise(cli, prefix, secrets, tmp_path):
     master, boost, access = secrets
     sites = tmp_path / f"sites-{len(prefix)}.txt"
     sites.write_text("example.org\nexample.net fulano\n", encoding="utf-8")
+    keyfile = tmp_path / f"factor-{len(prefix)}.pw3f"
     steps = [
         (["github.com"], [master, boost, access]),
         (["github.com", "--bump"], [master, boost, access]),
@@ -275,6 +300,10 @@ def _exercise(cli, prefix, secrets, tmp_path):
         (["--change-access-password"], [access, "outra senha de acesso", "outra senha de acesso"]),
         (["--print-recovery", "--keep-recovery-file"], [master, boost, "outra senha de acesso"]),
         (["github.com"], [master, boost]),
+        (["--gen-keyfile", str(keyfile)], [master, boost]),
+        (["--pin-key-file", str(keyfile), "--force"], [master, boost]),
+        (["github.com"], [master, boost]),
+        (["--unpin-key-file"], []),
         (["--new-device-id"], []),
         (["--delete", "example.org"], ["outra senha de acesso"]),
         (["--list-profiles"], []),
@@ -396,6 +425,281 @@ def test_init_warns_when_another_profile_has_the_same_user_id(ready, cli):
     assert same.out.index("same user id") < same.out.index("Fingerprint:")
     other = cli(["--profile", "home", "--init", "--user-id", "outro@example.com"], secrets=INIT2)
     assert other.code == 0 and "same user id" not in other.out
+
+
+# --- keyfile pin (§9) --------------------------------------------------------
+
+@pytest.fixture
+def keyfile(ready, cli, tmp_path):
+    path = tmp_path / "factor.pw3f"
+    assert cli(["--gen-keyfile", str(path)], secrets=[MASTER, BOOST]).code == 0
+    return path
+
+
+@pytest.fixture
+def pinned(keyfile, cli):
+    result = cli(["--pin-key-file", str(keyfile)], secrets=SECRETS)
+    assert result.code == 0, result.err
+    return keyfile
+
+
+def expected(path=None, site="github.com", master=MASTER, boost=BOOST, user=USER):
+    with derive.Session.open(master, boost, user) as session:
+        if path is not None:
+            session.use_keyfile(keys.open_keyfile(path.read_bytes(), session.prk_none))
+        return session.password(site), session.totp_secret(site)
+
+
+def test_pin_records_path_and_hash(pinned, isolated_home):
+    config = config_of(isolated_home)
+    assert config["key_file"] == str(pinned) and os.path.isabs(config["key_file"])
+    assert config["key_file_sha256"] == hashlib.sha256(pinned.read_bytes()).hexdigest()
+
+
+def test_pin_asks_master_boost_and_opens_the_registry(keyfile, cli):
+    result = cli(["--pin-key-file", str(keyfile)], secrets=SECRETS)
+    assert result.code == 0 and result.asked == ["Master password: ", "Boost: ", "Access password: "]
+    assert "Fingerprint:" in result.out
+
+
+def test_a_pinned_profile_derives_with_its_keyfile(pinned, cli):
+    password, totp = expected(pinned)
+    assert password != expected()[0]
+    assert cli(["github.com"], secrets=SECRETS).password == password
+    assert cli(["github.com", "--no-journal"], secrets=[MASTER, BOOST]).password == password
+    assert cli(["github.com", "--totp"], secrets=SECRETS).value("TOTP secret (Base32):") == totp
+
+
+def test_a_missing_or_different_keyfile_stops_before_argon2(pinned, cli, tmp_path, stretches):
+    other = tmp_path / "other.pw3f"
+    assert cli(["--gen-keyfile", str(other)], secrets=[MASTER, BOOST]).code == 0
+    stashed = tmp_path / "stashed.pw3f"
+    shutil.move(pinned, stashed)
+    del stretches[:]
+    attempts = [(["github.com"], SECRETS), (["github.com", "--no-journal"], [MASTER, BOOST]),
+                (["github.com", "--ssh"], SECRETS),
+                (["--export-kdbx", str(tmp_path / "x.kdbx")], SECRETS + ["k", "k"]),
+                (["--mass-rekey", "--export-kdbx", str(tmp_path / "y.kdbx"), "--drop-key-file"], SECRETS)]
+    for argv, secrets in attempts:
+        result = cli(argv, secrets=secrets)
+        assert result.code == 1 and str(pinned) in result.err and result.asked == [], argv
+    shutil.copy(other, pinned)                          # same path, another keyfile
+    for argv, secrets in attempts:
+        result = cli(argv, secrets=secrets)
+        assert result.code == 1 and str(pinned) in result.err and result.asked == [], argv
+    assert stretches == []
+    shutil.copy(stashed, pinned)
+    assert cli(["github.com"], secrets=SECRETS).password == expected(stashed)[0]
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="POSIX permissions, not root")
+def test_an_unreadable_keyfile_stops_before_argon2(pinned, cli, stretches):
+    os.chmod(pinned, 0)
+    try:
+        result = cli(["github.com"], secrets=SECRETS)
+    finally:
+        os.chmod(pinned, 0o600)
+    assert result.code == 1 and str(pinned) in result.err and result.asked == [] and stretches == []
+
+
+def test_key_file_flag_on_a_pinned_profile(pinned, cli, tmp_path, stretches):
+    other = tmp_path / "other.pw3f"
+    assert cli(["--gen-keyfile", str(other)], secrets=[MASTER, BOOST]).code == 0
+    del stretches[:]
+    refused = cli(["github.com", "--key-file", str(other)], secrets=SECRETS)
+    assert refused.code == 1 and str(other) in refused.err and refused.asked == [] and stretches == []
+    copy = tmp_path / "copy.pw3f"
+    shutil.copy(pinned, copy)
+    pinned.unlink()                                     # the copy stands in for a lost original
+    assert cli(["github.com", "--key-file", str(copy)], secrets=SECRETS).password == expected(copy)[0]
+
+
+def test_pinning_a_registry_with_entries_needs_force(keyfile, cli, isolated_home):
+    cli(["github.com"], secrets=SECRETS)
+    refused = cli(["--pin-key-file", str(keyfile)], secrets=SECRETS)
+    assert refused.code == 1 and "--force" in refused.err and "--mass-rekey" in refused.err
+    assert "key_file" not in config_of(isolated_home)
+    assert cli(["--pin-key-file", str(keyfile), "--force"], secrets=SECRETS).code == 0
+    assert config_of(isolated_home)["key_file"] == str(keyfile)
+
+
+def test_pinning_right_after_init_needs_no_force(fast, cli, tmp_path, isolated_home):
+    assert cli(WORK + ["--init", "--user-id", USER2], secrets=INIT2).code == 0
+    keyfile = tmp_path / "k.pw3f"
+    assert cli(WORK + ["--gen-keyfile", str(keyfile)], secrets=[MASTER2, BOOST2]).code == 0
+    assert cli(WORK + ["--pin-key-file", str(keyfile)], secrets=SECRETS2).code == 0
+    assert config_of(isolated_home, "work")["key_file"] == str(keyfile)
+
+
+def test_pin_refuses_a_keyfile_of_other_secrets_or_a_non_keyfile(ready, cli, tmp_path, isolated_home):
+    foreign = tmp_path / "foreign.pw3f"
+    assert cli(["--gen-keyfile", str(foreign), "--user-id", "outro@example.com"], secrets=[MASTER, BOOST]).code == 0
+    refused = cli(["--pin-key-file", str(foreign)], secrets=SECRETS)
+    assert refused.code == 1 and str(foreign) in refused.err
+    junk = tmp_path / "junk"
+    junk.write_bytes(b"x" * 65)
+    refused = cli(["--pin-key-file", str(junk)], secrets=SECRETS)
+    assert refused.code == 1 and str(junk) in refused.err and refused.asked == []
+    missing = cli(["--pin-key-file", str(tmp_path / "missing")], secrets=SECRETS)
+    assert missing.code == 1 and missing.asked == []
+    assert "key_file" not in config_of(isolated_home)
+
+
+def test_a_copy_with_the_pinned_hash_moves_the_pin_without_secrets(pinned, cli, tmp_path, isolated_home):
+    cli(["github.com"], secrets=SECRETS)                # entries do not matter for a move
+    moved = tmp_path / "moved" / "factor.pw3f"
+    moved.parent.mkdir()
+    shutil.copy(pinned, moved)
+    pinned.unlink()
+    result = cli(["--pin-key-file", str(moved)])
+    assert result.code == 0 and result.asked == [] and str(moved) in result.out
+    assert config_of(isolated_home)["key_file"] == str(moved)
+    assert cli(["github.com"], secrets=SECRETS).password == expected(moved)[0]
+
+
+def test_unpin(pinned, cli, isolated_home):
+    result = cli(["--unpin-key-file"])
+    assert result.code == 0 and result.asked == [] and "WARNING" in result.out
+    config = config_of(isolated_home)
+    assert "key_file" not in config and "key_file_sha256" not in config
+    assert cli(["github.com"], secrets=SECRETS).password == expected()[0]
+    again = cli(["--unpin-key-file"])
+    assert again.code == 0 and "no keyfile" in again.out.lower()
+
+
+def test_mass_rekey_on_a_pinned_profile_must_be_told_about_the_keyfile(pinned, cli, tmp_path, stretches):
+    cli(["github.com"], secrets=SECRETS)
+    del stretches[:]
+    out = str(tmp_path / "rekey.kdbx")
+    neither = cli(["--mass-rekey", "--export-kdbx", out], secrets=SECRETS)
+    assert neither.code == 1 and "--new-key-file" in neither.err and "--drop-key-file" in neither.err
+    assert neither.asked == [] and stretches == []
+    both = cli(["--mass-rekey", "--export-kdbx", out, "--drop-key-file", "--new-key-file", str(pinned)],
+               secrets=SECRETS)
+    assert both.code == 1 and both.asked == []
+
+
+NEW_MASTER, NEW_BOOST = "outra mestra", "novo reforco de cinco palavras aqui"
+REKEY = SECRETS + [NEW_MASTER, NEW_MASTER, NEW_BOOST, NEW_BOOST, "k", "k"]
+
+
+def test_mass_rekey_drop_key_file(pinned, cli, tmp_path, isolated_home):
+    pykeepass = pytest.importorskip("pykeepass")
+    cli(["github.com"], secrets=SECRETS)
+    out = tmp_path / "rekey.kdbx"
+    result = cli(["--mass-rekey", "--export-kdbx", str(out), "--drop-key-file"], secrets=REKEY)
+    assert result.code == 0, result.err
+    database = pykeepass.PyKeePass(str(out), password="k")
+    assert database.find_entries(title="github.com (old)", first=True).password == expected(pinned)[0]
+    new = expected(master=NEW_MASTER, boost=NEW_BOOST)[0]
+    assert database.find_entries(title="github.com (new)", first=True).password == new
+    assert "key_file" not in config_of(isolated_home)
+    assert cli(["github.com"], secrets=[NEW_MASTER, NEW_BOOST, ACCESS]).password == new
+
+
+def test_mass_rekey_new_key_file_becomes_the_pin(pinned, cli, tmp_path, isolated_home):
+    pykeepass = pytest.importorskip("pykeepass")
+    cli(["github.com"], secrets=SECRETS)
+    new_keyfile = tmp_path / "new.pw3f"
+    assert cli(["--gen-keyfile", str(new_keyfile)], secrets=[NEW_MASTER, NEW_BOOST]).code == 0
+    out = tmp_path / "rekey.kdbx"
+    result = cli(["--mass-rekey", "--export-kdbx", str(out), "--new-key-file", str(new_keyfile)], secrets=REKEY)
+    assert result.code == 0, result.err
+    config = config_of(isolated_home)
+    assert config["key_file"] == str(new_keyfile)
+    assert config["key_file_sha256"] == hashlib.sha256(new_keyfile.read_bytes()).hexdigest()
+    new = expected(new_keyfile, master=NEW_MASTER, boost=NEW_BOOST)[0]
+    assert pykeepass.PyKeePass(str(out), password="k").find_entries(
+        title="github.com (new)", first=True).password == new
+    assert cli(["github.com"], secrets=[NEW_MASTER, NEW_BOOST, ACCESS]).password == new
+
+
+def test_without_a_pin_mass_rekey_keeps_todays_meaning(ready, cli, tmp_path, isolated_home):
+    pytest.importorskip("pykeepass")
+    cli(["github.com"], secrets=SECRETS)
+    new_keyfile = tmp_path / "new.pw3f"
+    assert cli(["--gen-keyfile", str(new_keyfile)], secrets=[NEW_MASTER, NEW_BOOST]).code == 0
+    result = cli(["--mass-rekey", "--export-kdbx", str(tmp_path / "r.kdbx"), "--new-key-file", str(new_keyfile)],
+                 secrets=REKEY)
+    assert result.code == 0, result.err
+    assert "key_file" not in config_of(isolated_home)
+    dropped = cli(["--mass-rekey", "--export-kdbx", str(tmp_path / "s.kdbx"), "--drop-key-file"], secrets=REKEY)
+    assert dropped.code == 1 and "no keyfile" in dropped.err.lower() and dropped.asked == []
+
+
+def test_drop_key_file_belongs_to_mass_rekey(pinned, cli):
+    assert cli(["github.com", "--drop-key-file"], secrets=SECRETS).code == 2
+
+
+def test_init_with_key_file_pins_at_creation(fast, cli, tmp_path, isolated_home):
+    keyfile = tmp_path / "k.pw3f"
+    assert cli(["--gen-keyfile", str(keyfile), "--user-id", USER], secrets=[MASTER, BOOST]).code == 0
+    assert not (isolated_home / ".passweird").exists()
+    result = cli(["--init", "--user-id", USER, "--key-file", str(keyfile)], secrets=INIT)
+    assert result.code == 0, result.err
+    config = config_of(isolated_home)
+    assert config["key_file"] == str(keyfile)
+    assert config["key_file_sha256"] == hashlib.sha256(keyfile.read_bytes()).hexdigest()
+    assert cli(["github.com"], secrets=SECRETS).password == expected(keyfile)[0]
+
+
+def test_init_refuses_a_bad_key_file_and_writes_nothing(fast, cli, tmp_path, isolated_home, stretches):
+    foreign = tmp_path / "foreign.pw3f"
+    assert cli(["--gen-keyfile", str(foreign), "--user-id", "outro@example.com"], secrets=[MASTER, BOOST]).code == 0
+    refused = cli(["--init", "--user-id", USER, "--key-file", str(foreign)], secrets=INIT)
+    assert refused.code == 1 and str(foreign) in refused.err
+    assert not (isolated_home / ".passweird").exists()
+    del stretches[:]
+    missing = cli(["--init", "--user-id", USER, "--key-file", str(tmp_path / "missing")], secrets=INIT)
+    assert missing.code == 1 and missing.asked == [] and stretches == []
+    assert not (isolated_home / ".passweird").exists()
+
+
+def test_join_asks_whether_a_keyfile_is_used(devices, cli, tmp_path, monkeypatch):
+    on, shared = devices
+    assert "key_file" not in config_of(tmp_path / "b")             # answered with an empty line
+    on("a")
+    keyfile = tmp_path / "factor.pw3f"
+    assert cli(["--gen-keyfile", str(keyfile)], secrets=[MASTER, BOOST]).code == 0
+    assert cli(["--pin-key-file", str(keyfile)], secrets=SECRETS).code == 0
+    password = cli(["github.com"], secrets=SECRETS).password
+    join = ["--join", "--user-id", USER, "--journal-dir", str(shared), "--secrets-stdin"]
+
+    go_home(monkeypatch, tmp_path / "c")                            # answers with the path
+    assert cli(join, stdin=f"{ACCESS}\n{keyfile}\n").code == 0
+    assert config_of(tmp_path / "c")["key_file"] == str(keyfile)
+    assert cli(["github.com"], secrets=SECRETS).password == password
+
+    go_home(monkeypatch, tmp_path / "d")                            # answers with nothing
+    assert cli(join, stdin=f"{ACCESS}\n\n").code == 0
+    assert "key_file" not in config_of(tmp_path / "d")
+    assert cli(["github.com"], secrets=SECRETS).password != password
+
+    go_home(monkeypatch, tmp_path / "e")                            # --key-file answers it
+    assert cli(join + ["--key-file", str(keyfile)], stdin=f"{ACCESS}\n").code == 0
+    assert config_of(tmp_path / "e")["key_file"] == str(keyfile)
+
+    go_home(monkeypatch, tmp_path / "f")                            # wrong password: no question
+    wrong = cli(join, stdin="errada\n")
+    assert wrong.code == 1 and "wrong access password" in wrong.err
+
+    junk = tmp_path / "junk"
+    junk.write_bytes(b"PW3G" + b"\x00" * 61)
+    refused = cli(join, stdin=f"{ACCESS}\n{junk}\n")
+    assert refused.code == 1 and str(junk) in refused.err
+    assert not (tmp_path / "f" / ".passweird" / "v3" / "config").exists()
+
+
+def test_join_only_checks_the_header_then_the_first_derivation_fails(devices, cli, tmp_path, monkeypatch):
+    on, shared = devices
+    foreign = tmp_path / "foreign.pw3f"
+    assert cli(["--gen-keyfile", str(foreign), "--user-id", "outro@example.com"], secrets=[MASTER, BOOST]).code == 0
+    go_home(monkeypatch, tmp_path / "c")
+    join = cli(["--join", "--user-id", USER, "--journal-dir", str(shared), "--secrets-stdin"],
+               stdin=f"{ACCESS}\n{foreign}\n")
+    assert join.code == 0 and join.asked == []
+    derived = cli(["github.com"], secrets=SECRETS)
+    assert derived.code == 1 and str(foreign) in derived.err and "Password:" not in derived.out
 
 
 # --- vectors under any profile -----------------------------------------------

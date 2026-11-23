@@ -400,7 +400,7 @@ def devices(fast, cli, tmp_path, monkeypatch):
     assert cli(["--init", "--user-id", USER, "--journal-dir", str(shared)],
                secrets=[MASTER, MASTER, BOOST, BOOST, ACCESS, ACCESS]).code == 0
     on("b")
-    assert cli(["--join", "--user-id", USER, "--journal-dir", str(shared)], secrets=[ACCESS]).code == 0
+    assert cli(["--join", "--user-id", USER, "--journal-dir", str(shared)], secrets=[ACCESS], inputs=[""]).code == 0
     return on, shared
 
 

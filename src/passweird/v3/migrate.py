@@ -169,8 +169,7 @@ def cmd_migrate_v2(args, prompter, profile):
             if any(i["v2_temporal"] for i in items):
                 temporal = prompter.secret("v2 temporal secret (empty if unknown)")
             app.say("v3 secrets:")
-            session = app.open_session(prompter, config["user_id"])
-            app.apply_keyfile(session, args.key_file)
+            session = app.open_derivation(config, prompter, config["user_id"], args.key_file)
         book = app.open_journal(profile, config, prompter, session)
 
         defaults = (config.get("length", app.DEFAULT_LENGTH), config.get("classes", app.DEFAULT_CLASSES))

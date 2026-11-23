@@ -59,7 +59,8 @@ def build_parser():
     derivation.add_argument("-p", "--paranoid", action="store_true", help="prompt for the site hidden")
     derivation.add_argument("--no-journal", action="store_true", help="stateless run: read and write nothing")
     derivation.add_argument("--user-id", help="user id (salt); needed only without a configuration")
-    derivation.add_argument("--key-file", metavar="PATH", help="keyfile to use as a second factor")
+    derivation.add_argument("--key-file", metavar="PATH",
+                            help="keyfile to use as a second factor (with --init or --join: pin it to the profile)")
     derivation.add_argument("--totp", action="store_true", help="derive a TOTP secret for the site instead")
     derivation.add_argument("--ssh", action="store_true", help="derive an Ed25519 SSH key pair instead")
     derivation.add_argument("--ssl", action="store_true", help="derive a self-signed TLS certificate (Ed25519) instead")
@@ -84,6 +85,9 @@ def build_parser():
                          help="profile to act on (default: $PASSWEIRD_PROFILE if set, else 'default')")
     profile.add_argument("--list-profiles", action="store_true",
                          help="list the profiles initialised on this device (needs no secret)")
+    profile.add_argument("--pin-key-file", metavar="PATH",
+                         help="pin a keyfile to the profile: every derivation then uses it and stops without it")
+    profile.add_argument("--unpin-key-file", action="store_true", help="remove the profile's keyfile pin")
 
     book = parser.add_argument_group("journal (access password only)")
     book.add_argument("--list", action="store_true", help="list sites")
@@ -109,7 +113,10 @@ def build_parser():
                           help="export passwords (all, or SITE) to a new KeePass database")
     recovery.add_argument("--mass-rekey", action="store_true",
                           help="new master/boost: old and new password of every entry into --export-kdbx FILE")
-    recovery.add_argument("--new-key-file", metavar="PATH", help="with --mass-rekey: keyfile for the new secrets")
+    recovery.add_argument("--new-key-file", metavar="PATH",
+                          help="with --mass-rekey: keyfile for the new secrets (on a pinned profile, the new pin)")
+    recovery.add_argument("--drop-key-file", action="store_true",
+                          help="with --mass-rekey on a pinned profile: no keyfile for the new secrets; the pin is removed")
 
     legacy = parser.add_argument_group("migration from v2 (read-only)")
     legacy.add_argument("--migrate-v2", action="store_true",
@@ -138,6 +145,10 @@ def dispatch(args, prompter, profile):
         return app.cmd_join(args, prompter, profile)
     if args.new_device_id:
         return app.cmd_new_device_id(args, prompter, profile)
+    if args.pin_key_file:
+        return app.cmd_pin_key_file(args, prompter, profile)
+    if args.unpin_key_file:
+        return app.cmd_unpin_key_file(args, prompter, profile)
     if args.gen_keyfile:
         return app.cmd_gen_keyfile(args, prompter, profile)
     if args.list:
@@ -190,6 +201,8 @@ def main():
     # Checked before any prompt, so a bad value does not cost a typed secret.
     if args.rsa is not None and (args.rsa < 2048 or args.rsa % 16 != 0):
         parser.error(f"--rsa must be at least 2048 and a multiple of 16 (got {args.rsa})")
+    if args.drop_key_file and not args.mass_rekey:
+        parser.error("--drop-key-file is used with --mass-rekey")
     try:
         run(args)
     except (app.CliError, profiles.ProfileError) as exc:
