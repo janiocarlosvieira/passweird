@@ -6,7 +6,7 @@
 import argparse
 import sys
 
-from .v3 import app, migrate
+from .v3 import app, migrate, profiles
 
 EPILOG = """\
 secrets are always prompted (hidden) and never accepted as arguments:
@@ -20,6 +20,18 @@ typical use:
   passweird github.com -u fulano   derive (and remember) a password
   passweird github.com --bump      rotate it
   passweird --list                 needs only the access password
+
+profiles (several independent installations on one device):
+  passweird --profile work --init  create the profile "work"
+  passweird --list-profiles        list them; needs no secret
+  PASSWEIRD_PROFILE=work ...       same as --profile work
+  Without either, the profile is "default": the installation in ~/.passweird/v3.
+  A named profile lives in ~/.passweird/v3/profiles/NAME. To rename it, rename
+  that directory; to delete it, delete the directory (and its journal folder,
+  if no other device uses it).
+  A profile separates state, not derivation: two profiles with the same user id,
+  master and boost derive the same passwords. To keep them apart, give them
+  other secrets; a different user id alone protects nothing, it is not secret.
 """
 
 
@@ -67,6 +79,12 @@ def build_parser():
     setup.add_argument("--keep-recovery-file", action="store_true",
                        help="also store the recovery wrap on this device (default: printed once, not stored)")
 
+    profile = parser.add_argument_group("profiles")
+    profile.add_argument("--profile", metavar="NAME",
+                         help="profile to act on (default: $PASSWEIRD_PROFILE if set, else 'default')")
+    profile.add_argument("--list-profiles", action="store_true",
+                         help="list the profiles initialised on this device (needs no secret)")
+
     book = parser.add_argument_group("journal (access password only)")
     book.add_argument("--list", action="store_true", help="list sites")
     book.add_argument("--show", metavar="SITE", help="show one entry")
@@ -107,46 +125,63 @@ def build_parser():
     return parser
 
 
-def dispatch(args, prompter):
+def dispatch(args, prompter, profile):
+    # The first four need no existing profile; their order here is the one
+    # main() relies on to decide that.
     if args.gen_boost is not None:
         return app.cmd_gen_boost(args.gen_boost)
+    if args.list_profiles:
+        return app.cmd_list_profiles(args, prompter)
     if args.init:
-        return app.cmd_init(args, prompter)
+        return app.cmd_init(args, prompter, profile)
     if args.join:
-        return app.cmd_join(args, prompter)
+        return app.cmd_join(args, prompter, profile)
     if args.new_device_id:
-        return app.cmd_new_device_id(args, prompter)
+        return app.cmd_new_device_id(args, prompter, profile)
     if args.gen_keyfile:
-        return app.cmd_gen_keyfile(args, prompter)
+        return app.cmd_gen_keyfile(args, prompter, profile)
     if args.list:
-        return app.cmd_list(args, prompter)
+        return app.cmd_list(args, prompter, profile)
     if args.show:
-        return app.cmd_show(args, prompter)
+        return app.cmd_show(args, prompter, profile)
     if args.history is not None:
-        return app.cmd_history(args, prompter)
+        return app.cmd_history(args, prompter, profile)
     if args.edit:
-        return app.cmd_edit(args, prompter)
+        return app.cmd_edit(args, prompter, profile)
     if args.resolve:
-        return app.cmd_resolve(args, prompter)
+        return app.cmd_resolve(args, prompter, profile)
     if args.delete:
-        return app.cmd_delete(args, prompter)
+        return app.cmd_delete(args, prompter, profile)
     if args.import_list:
-        return app.cmd_import_list(args, prompter)
+        return app.cmd_import_list(args, prompter, profile)
     if args.change_access_password:
-        return app.cmd_change_access_password(args, prompter)
+        return app.cmd_change_access_password(args, prompter, profile)
     if args.recover:
-        return app.cmd_recover(args, prompter)
+        return app.cmd_recover(args, prompter, profile)
     if args.print_recovery:
-        return app.cmd_print_recovery(args, prompter)
+        return app.cmd_print_recovery(args, prompter, profile)
     if args.migrate_v2:
-        return migrate.cmd_migrate_v2(args, prompter)
+        return migrate.cmd_migrate_v2(args, prompter, profile)
     if args.v2_show:
-        return migrate.cmd_v2_show(args, prompter)
+        return migrate.cmd_v2_show(args, prompter, profile)
     if args.mass_rekey:
-        return app.cmd_mass_rekey(args, prompter)
+        return app.cmd_mass_rekey(args, prompter, profile)
     if args.export_kdbx:
-        return app.cmd_export_kdbx(args, prompter)
-    return app.cmd_generate(args, prompter)
+        return app.cmd_export_kdbx(args, prompter, profile)
+    return app.cmd_generate(args, prompter, profile)
+
+
+def run(args):
+    """Resolves the profile once (ADR-0013 §4) and runs the command in it."""
+    profile = profiles.resolve(args.profile)
+    no_profile_needed = args.gen_boost is not None or args.list_profiles
+    # Only --init and --join create a profile directory, so a mistyped name
+    # never yields an empty profile, nor falls back to a stateless run.
+    if not (no_profile_needed or args.init or args.join) and not profile.is_default and not profile.exists():
+        raise profiles.not_found(profile)
+    if not no_profile_needed and not profile.is_default:
+        print(f"Profile: {profile.name}")
+    dispatch(args, app.Prompter(from_stdin=args.secrets_stdin, profile=profile), profile)
 
 
 def main():
@@ -155,10 +190,9 @@ def main():
     # Checked before any prompt, so a bad value does not cost a typed secret.
     if args.rsa is not None and (args.rsa < 2048 or args.rsa % 16 != 0):
         parser.error(f"--rsa must be at least 2048 and a multiple of 16 (got {args.rsa})")
-    prompter = app.Prompter(from_stdin=args.secrets_stdin)
     try:
-        dispatch(args, prompter)
-    except app.CliError as exc:
+        run(args)
+    except (app.CliError, profiles.ProfileError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:

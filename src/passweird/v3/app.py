@@ -13,7 +13,8 @@ Rules this module enforces:
   - no secret is ever read from argv, printed back, or written to disk;
   - the canonical site and the fingerprint are shown before any password;
   - a journal entry's counter, length and classes win over command-line
-    flags unless --force is given.
+    flags unless --force is given;
+  - every command acts on one profile (ADR-0013), resolved once by main.py.
 """
 import datetime
 import getpass
@@ -21,7 +22,7 @@ import json
 import os
 import sys
 
-from . import artifacts, canon, derive, fileio, journal, kdbx, keys, wordlist
+from . import artifacts, canon, derive, fileio, journal, kdbx, keys, profiles, wordlist
 
 CONFIG_VERSION = 1
 DEFAULT_LENGTH = 18
@@ -32,31 +33,31 @@ class CliError(Exception):
     """A failure to report to the user and exit with status 1."""
 
 
-# --- paths and configuration -------------------------------------------------
+# --- paths and configuration (one profile, ADR-0013 §2) ----------------------
 
-def base_dir():
-    return os.path.join(os.path.expanduser("~"), ".passweird", "v3")
-
-
-def config_path():
-    return os.path.join(base_dir(), "config")
+def base_dir(profile):
+    return profile.directory
 
 
-def recovery_path():
-    return os.path.join(base_dir(), "recovery.pw3")
+def config_path(profile):
+    return profile.config_path
 
 
-def default_journal_dir():
-    return os.path.join(base_dir(), "journal")
+def recovery_path(profile):
+    return profile.recovery_path
 
 
-def load_config():
+def default_journal_dir(profile):
+    return profile.default_journal_dir
+
+
+def load_config(profile):
     try:
-        config = json.loads(fileio.read_bytes(config_path()).decode("utf-8"))
+        config = json.loads(fileio.read_bytes(config_path(profile)).decode("utf-8"))
     except FileNotFoundError:
         return None
     except ValueError:
-        raise CliError(f"{config_path()} is not valid JSON") from None
+        raise CliError(f"{config_path(profile)} is not valid JSON") from None
     if config.get("alg") != derive.ALG:
         raise CliError(
             f"this installation was initialised for {config.get('alg')!r}; "
@@ -65,14 +66,13 @@ def load_config():
     return config
 
 
-def save_config(config):
-    fileio.ensure_private_dir(os.path.dirname(base_dir()))
-    fileio.ensure_private_dir(base_dir())
-    fileio.atomic_write(config_path(), json.dumps(config, indent=1, sort_keys=True).encode("utf-8"))
+def save_config(profile, config):
+    profile.ensure_directory()
+    fileio.atomic_write(config_path(profile), json.dumps(config, indent=1, sort_keys=True).encode("utf-8"))
 
 
-def require_config():
-    config = load_config()
+def require_config(profile):
+    config = load_config(profile)
     if config is None:
         raise CliError("not initialised on this device: run --init, or --join for an existing journal")
     return config
@@ -84,11 +84,16 @@ class Prompter:
     """
     Reads secrets with getpass, or line by line from stdin with
     --secrets-stdin (for automation and tests). Secrets never come from argv.
+
+    Every prompt of a named profile carries its name, "[work] Master
+    password:", so that the profile in use is visible where secrets are typed
+    (ADR-0013 §4). The default profile's prompts are unchanged.
     """
 
-    def __init__(self, from_stdin=False, out=None):
+    def __init__(self, from_stdin=False, out=None, profile=None):
         self.from_stdin = from_stdin
         self.out = out or sys.stdout
+        self.prefix = profile.prompt_prefix if profile is not None else ""
 
     def _line(self, label):
         line = sys.stdin.readline()
@@ -99,7 +104,7 @@ class Prompter:
     def secret(self, label):
         if self.from_stdin:
             return self._line(label)
-        return getpass.getpass(label + ": ")
+        return getpass.getpass(self.prefix + label + ": ")
 
     def secret_twice(self, label):
         first = self.secret(label)
@@ -110,7 +115,20 @@ class Prompter:
     def text(self, label):
         if self.from_stdin:
             return self._line(label)
-        return input(label + ": ")
+        return input(self.prefix + label + ": ")
+
+    def paragraph(self, label):
+        """Several lines up to an empty one, joined by spaces (a pasted text)."""
+        if self.from_stdin:
+            return self._line(label)
+        say(self.prefix + label + ", then an empty line:")
+        lines = []
+        while True:
+            line = input()
+            if not line.strip():
+                break
+            lines.append(line)
+        return " ".join(lines)
 
 
 def say(*parts):
@@ -158,7 +176,7 @@ def read_keys_file(config):
         raise CliError(f"{path} not found: has the journal folder finished syncing?") from None
 
 
-def open_journal(config, prompter, session=None):
+def open_journal(profile, config, prompter, session=None):
     """
     Journal tier. With a session and a local recovery.pw3 (--keep-recovery-file)
     the journal opens from master + boost alone; otherwise the access password
@@ -168,9 +186,9 @@ def open_journal(config, prompter, session=None):
     try:
         journal_id = keys.journal_id_of_keys_file(data)
         dek = None
-        if session is not None and os.path.exists(recovery_path()):
+        if session is not None and os.path.exists(recovery_path(profile)):
             try:
-                rec_id, dek = keys.open_recovery(fileio.read_bytes(recovery_path()), session.prk_none)
+                rec_id, dek = keys.open_recovery(fileio.read_bytes(recovery_path(profile)), session.prk_none)
             except keys.WrongSecret:
                 raise CliError(
                     "the local recovery file does not open with this master password and boost "
@@ -185,7 +203,7 @@ def open_journal(config, prompter, session=None):
                 raise CliError("wrong access password") from None
             except canon.CanonicalError as exc:
                 raise CliError(str(exc)) from None
-        return journal.Journal(config["journal_dir"], base_dir(), dek, journal_id,
+        return journal.Journal(config["journal_dir"], base_dir(profile), dek, journal_id,
                                bytes.fromhex(config["device_id"]))
     except keys.KeyError_ as exc:
         raise CliError(str(exc)) from None
@@ -204,13 +222,16 @@ def journal_write(action):
 
 # --- recovery text -----------------------------------------------------------
 
-def print_recovery(blob):
+def print_recovery(blob, profile, user_id):
     say("")
     say("=== Recovery text: shown ONCE, not stored on this device ===")
     say("It opens the journal with your master password and boost if the access")
     say("password is lost. Keep it on paper or offline; anyone holding it can test")
     say("guesses of master + boost against it.")
     say("")
+    # With several profiles, a sheet that does not say which registry it opens
+    # is half a recovery (ADR-0013 §5). Neither value is secret.
+    say(f'For profile "{profile.name}", user id {user_id}')
     say(keys.recovery_to_text(blob))
     say("")
     try:
@@ -224,9 +245,9 @@ def print_recovery(blob):
     code.print_ascii(out=sys.stdout, invert=True)
 
 
-def store_recovery(blob):
-    fileio.atomic_write(recovery_path(), blob)
-    say(f"Recovery file kept at {recovery_path()} (--keep-recovery-file).")
+def store_recovery(profile, blob):
+    fileio.atomic_write(recovery_path(profile), blob)
+    say(f"Recovery file kept at {recovery_path(profile)} (--keep-recovery-file).")
     say("With it, this device opens the journal from master + boost alone; it is also")
     say("an offline oracle for them, so keep it off shared and synced folders.")
 
@@ -243,14 +264,7 @@ def read_recovery(prompter, path=None):
     elif prompter.from_stdin:
         text = prompter.text("Recovery text")
     else:
-        say("Paste the recovery text, then an empty line:")
-        lines = []
-        while True:
-            line = input()
-            if not line.strip():
-                break
-            lines.append(line)
-        text = " ".join(lines)
+        text = prompter.paragraph("Paste the recovery text")
     try:
         return keys.recovery_from_text(text)
     except keys.KeyError_ as exc:
@@ -284,10 +298,10 @@ def _new_access_password(prompter, master_c=None, boost_c=None):
     return access
 
 
-def cmd_init(args, prompter):
-    if load_config() is not None:
-        raise CliError(f"already initialised ({config_path()}); use --join only on a new device")
-    journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir()))
+def cmd_init(args, prompter, profile):
+    if load_config(profile) is not None:
+        raise CliError(f"already initialised ({config_path(profile)}); use --join only on a new device")
+    journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
     if os.path.exists(journal.keys_path(journal_dir)):
         raise CliError(f"{journal_dir} already holds a journal; use --join to add this device to it")
 
@@ -300,31 +314,33 @@ def cmd_init(args, prompter):
     session = derive.Session(derive.stretch(master_c, boost_c, user_id), user_id)
     try:
         journal_id, dek, device_id = keys.new_journal_id(), keys.new_dek(), journal.new_device_id()
+        profile.ensure_directory()
         fileio.ensure_private_dir(journal_dir)
         fileio.write_new(journal.keys_path(journal_dir),
                          keys.build_keys_file(journal_id, dek, access, keys.DEFAULT_ACCESS_PARAMS))
-        save_config({
+        config = {
             "version": CONFIG_VERSION, "alg": derive.ALG, "user_id": user_id,
             "journal_dir": journal_dir, "device_id": device_id.hex(),
             "length": DEFAULT_LENGTH, "classes": DEFAULT_CLASSES,
-        })
-        journal.Journal(journal_dir, base_dir(), dek, journal_id, device_id)   # creates streams/
+        }
+        save_config(profile, config)
+        journal.Journal(journal_dir, base_dir(profile), dek, journal_id, device_id)   # creates streams/
         say(f"Initialised. User id: {user_id}")
         say(f"Journal folder (the one to synchronise): {journal_dir}")
         say(f"Fingerprint: {session.fingerprint}")
         say("Learn this fingerprint: it is shown on every run and is how you notice a typo.")
         blob = keys.build_recovery(journal_id, dek, session.prk_none)
-        print_recovery(blob)
+        print_recovery(blob, profile, user_id)
         if args.keep_recovery_file:
-            store_recovery(blob)
+            store_recovery(profile, blob)
     finally:
         session.close()
 
 
-def cmd_join(args, prompter):
-    if load_config() is not None:
-        raise CliError(f"already initialised ({config_path()})")
-    journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir()))
+def cmd_join(args, prompter, profile):
+    if load_config(profile) is not None:
+        raise CliError(f"already initialised ({config_path(profile)})")
+    journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
     config = {
         "version": CONFIG_VERSION, "alg": derive.ALG, "journal_dir": journal_dir,
         "device_id": journal.new_device_id().hex(), "length": DEFAULT_LENGTH, "classes": DEFAULT_CLASSES,
@@ -338,21 +354,41 @@ def cmd_join(args, prompter):
         raise CliError("wrong access password") from None
     except (keys.KeyError_, canon.CanonicalError) as exc:
         raise CliError(str(exc)) from None
-    save_config(config)
+    save_config(profile, config)
     say(f"This device joined the journal at {journal_dir} as {config['device_id'][:8]}…")
     say("The user id cannot be checked here: confirm the fingerprint on the first derivation.")
 
 
-def cmd_new_device_id(args, prompter):
-    config = require_config()
+def cmd_new_device_id(args, prompter, profile):
+    config = require_config(profile)
     old = config["device_id"]
     config["device_id"] = journal.new_device_id().hex()
-    save_config(config)
+    save_config(profile, config)
     try:
-        os.unlink(os.path.join(base_dir(), "seen"))
+        os.unlink(profile.seen_path)
     except FileNotFoundError:
         pass
     say(f"New device id {config['device_id'][:8]}… (was {old[:8]}…). The old stream stays readable.")
+
+
+def cmd_list_profiles(args, prompter):
+    """ADR-0013 §5: needs no secret; nothing it prints is secret."""
+    found = profiles.listing()
+    if not found:
+        say("No profile is initialised on this device: run --init or --join "
+            "(with --profile NAME for a named profile).")
+    for number, prof in enumerate(found):
+        config = profiles.read_config(prof.directory) or {}
+        if number:
+            say("")
+        say(prof.name)
+        say(f"  User id: {config.get('user_id', '?')}")
+        say(f"  Journal folder: {config.get('journal_dir', '?')}")
+        say(f"  Device: {str(config.get('device_id', '?'))[:8]}…")
+        say(f"  Recovery file: {'kept' if os.path.exists(prof.recovery_path) else 'not kept'}")
+    for directory in profiles.unselectable():
+        say(f"Note: {directory} holds a configuration, but its name is not a valid profile name "
+            f"({profiles.NAME_RULE}); rename the directory to use it.")
 
 
 def _class_mask(args):
@@ -380,8 +416,8 @@ def warn_conflict(entry):
     say("an earlier one), then run --resolve for this site.")
 
 
-def cmd_generate(args, prompter):
-    config = load_config()
+def cmd_generate(args, prompter, profile):
+    config = load_config(profile)
     if config is None and not args.no_journal:
         raise CliError("not initialised: run --init, or use --no-journal with --user-id for a stateless run")
     user_id = args.user_id or (config or {}).get("user_id")
@@ -405,7 +441,7 @@ def cmd_generate(args, prompter):
     session = open_session(prompter, user_id)
     try:
         apply_keyfile(session, args.key_file)
-        book = None if args.no_journal else open_journal(config, prompter, session)
+        book = None if args.no_journal else open_journal(profile, config, prompter, session)
         entry = book.get(site, login, include_deleted=True) if book else None
 
         defaults = config or {}
@@ -537,8 +573,8 @@ def _stamp(ts):
     return datetime.datetime.fromtimestamp(ts / 1000, datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
 
 
-def cmd_list(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_list(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     entries = book.listing()
     if not entries:
         say("The journal is empty.")
@@ -549,8 +585,8 @@ def cmd_list(args, prompter):
         say(f"WARNING: {book.write_blocked}")
 
 
-def cmd_show(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_show(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     entry = _resolve_entry(book, args.show, args.login)
     say(f"Site: {entry.site}")
     say(f"Login: {entry.login or '(none)'}")
@@ -564,8 +600,8 @@ def cmd_show(args, prompter):
     warn_conflict(entry)
 
 
-def cmd_history(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_history(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     site = fail_canonical(canon.site, args.history) if args.history else None
     records = book.history(site)
     if not records:
@@ -577,8 +613,8 @@ def cmd_history(args, prompter):
         say(f"{_stamp(r['ts'])}  {r['device'][:8]}…  {r['op']:6}  {who}  {detail}".rstrip())
 
 
-def cmd_edit(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_edit(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     entry = _resolve_entry(book, args.edit, args.login)
     notes = entry.notes if args.notes is None else args.notes
     totp = entry.totp if args.second_factor is None else args.second_factor
@@ -588,8 +624,8 @@ def cmd_edit(args, prompter):
     say(f"Updated {entry.site}.")
 
 
-def cmd_resolve(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_resolve(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     entry = _resolve_entry(book, args.resolve, args.login)
     if not entry.conflict:
         say("Nothing to resolve for this entry.")
@@ -601,21 +637,21 @@ def cmd_resolve(args, prompter):
     say(f"Resolved {entry.site}: {_describe(resolved)}.")
 
 
-def cmd_delete(args, prompter):
-    book = open_journal(require_config(), prompter)
+def cmd_delete(args, prompter, profile):
+    book = open_journal(profile, require_config(profile), prompter)
     entry = _resolve_entry(book, args.delete, args.login)
     journal_write(lambda: book.delete(entry.site, entry.login))
     say(f"Deleted {entry.site}. Its counter ({entry.counter}) is kept as a floor if it is created again.")
 
 
-def cmd_import_list(args, prompter):
-    config = require_config()
+def cmd_import_list(args, prompter, profile):
+    config = require_config(profile)
     try:
         with open(os.path.expanduser(args.import_list), encoding="utf-8") as handle:
             lines = handle.read().splitlines()
     except OSError as exc:
         raise CliError(f"cannot read {args.import_list}: {exc}") from None
-    book = open_journal(config, prompter)
+    book = open_journal(profile, config, prompter)
     added = skipped = 0
     rejected = []
     for number, line in enumerate(lines, 1):
@@ -640,8 +676,8 @@ def cmd_import_list(args, prompter):
         say(f"  line {number}: {line!r}: {reason}")
 
 
-def cmd_change_access_password(args, prompter):
-    config = require_config()
+def cmd_change_access_password(args, prompter, profile):
+    config = require_config(profile)
     data = read_keys_file(config)
     try:
         journal_id, dek = keys.open_keys_file(data, prompter.secret("Current access password"))
@@ -662,10 +698,10 @@ def _say_not_revoked():
     say("still opens the journal with the old password.")
 
 
-def cmd_recover(args, prompter):
+def cmd_recover(args, prompter, profile):
     """Lost access password: open the journal with master + boost and the
     recovery text, then set a new access password."""
-    config = require_config()
+    config = require_config(profile)
     data = read_keys_file(config)
     blob = read_recovery(prompter, args.recovery_file)
     session = open_session(prompter, config["user_id"])
@@ -683,26 +719,26 @@ def cmd_recover(args, prompter):
                             keys.build_keys_file(journal_id, dek, new, keys.DEFAULT_ACCESS_PARAMS))
         _say_not_revoked()
         if args.keep_recovery_file:
-            store_recovery(blob)
+            store_recovery(profile, blob)
     finally:
         session.close()
 
 
-def cmd_print_recovery(args, prompter):
-    config = require_config()
+def cmd_print_recovery(args, prompter, profile):
+    config = require_config(profile)
     session = open_session(prompter, config["user_id"])
     try:
-        book = open_journal(config, prompter, session)
+        book = open_journal(profile, config, prompter, session)
         blob = keys.build_recovery(book.journal_id, book.dek, session.prk_none)
-        print_recovery(blob)
+        print_recovery(blob, profile, config["user_id"])
         if args.keep_recovery_file:
-            store_recovery(blob)
+            store_recovery(profile, blob)
     finally:
         session.close()
 
 
-def cmd_gen_keyfile(args, prompter):
-    config = load_config()
+def cmd_gen_keyfile(args, prompter, profile):
+    config = load_config(profile)
     user_id = args.user_id or (config or {}).get("user_id")
     if not user_id:
         raise CliError("--user-id is required when there is no configuration")
@@ -750,12 +786,12 @@ def _write_kdbx(path, prompter, entries):
     say("Database..., select this file, then delete it.")
 
 
-def cmd_export_kdbx(args, prompter):
-    config = require_config()
+def cmd_export_kdbx(args, prompter, profile):
+    config = require_config(profile)
     session = open_session(prompter, config["user_id"])
     try:
         apply_keyfile(session, args.key_file)
-        book = open_journal(config, prompter, session)
+        book = open_journal(profile, config, prompter, session)
         if args.site:
             selected = [_resolve_entry(book, args.site, args.login)]
         else:
@@ -773,20 +809,20 @@ def cmd_export_kdbx(args, prompter):
         session.close()
 
 
-def cmd_mass_rekey(args, prompter):
+def cmd_mass_rekey(args, prompter, profile):
     """
     New master password and/or boost: derives the old and the new password for
     every entry into one KDBX file, to be changed at each site. Counters do not
     move; the fingerprint and the recovery text change.
     """
-    config = require_config()
+    config = require_config(profile)
     if not args.export_kdbx:
         raise CliError("--mass-rekey needs --export-kdbx FILE for the old/new password pairs")
     say("OLD secrets:")
     old = open_session(prompter, config["user_id"])
     try:
         apply_keyfile(old, args.key_file)
-        book = open_journal(config, prompter, old)
+        book = open_journal(profile, config, prompter, old)
         say("NEW secrets:")
         master = prompter.secret_twice("New master password")
         boost = prompter.secret_twice("New boost")
@@ -813,9 +849,9 @@ def cmd_mass_rekey(args, prompter):
             say("A NEW recovery text follows, for the new master password and boost.")
             say("WARNING: the recovery text printed before still opens the journal with the")
             say("OLD master password and boost (the journal key did not change). Destroy it.")
-            print_recovery(blob)
-            if os.path.exists(recovery_path()) or args.keep_recovery_file:
-                store_recovery(blob)
+            print_recovery(blob, profile, config["user_id"])
+            if os.path.exists(recovery_path(profile)) or args.keep_recovery_file:
+                store_recovery(profile, blob)
         finally:
             new.close()
     finally:

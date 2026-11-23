@@ -149,8 +149,8 @@ def leftover_v2_files():
 
 # --- commands ----------------------------------------------------------------
 
-def cmd_migrate_v2(args, prompter):
-    config = app.require_config()
+def cmd_migrate_v2(args, prompter, profile):
+    config = app.require_config(profile)
     master_hash = v2_master_hash(prompter.secret("v2 master password"), args.v2_key_file)
     contexts = read_hosts(master_hash)
     if contexts is None:
@@ -171,7 +171,7 @@ def cmd_migrate_v2(args, prompter):
             app.say("v3 secrets:")
             session = app.open_session(prompter, config["user_id"])
             app.apply_keyfile(session, args.key_file)
-        book = app.open_journal(config, prompter, session)
+        book = app.open_journal(profile, config, prompter, session)
 
         defaults = (config.get("length", app.DEFAULT_LENGTH), config.get("classes", app.DEFAULT_CLASSES))
         imported, present, pairs = 0, 0, []
@@ -258,7 +258,7 @@ def _offer_cleanup(args, prompter):
     app.say(f"Deleted {len(files)} file(s).")
 
 
-def cmd_v2_show(args, prompter):
+def cmd_v2_show(args, prompter, profile):
     """Read-only: the password v2 would have generated for a context."""
     context = args.v2_show
     master_hash = v2_master_hash(prompter.secret("v2 master password"), args.v2_key_file)
