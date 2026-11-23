@@ -11,13 +11,16 @@ file and no record, so renaming a profile is renaming its directory.
 The profile is chosen explicitly every time: --profile, then PASSWEIRD_PROFILE,
 then "default". Nothing remembers the last one used. This is the only module
 that reads PASSWEIRD_PROFILE.
+
+The checks of §6 live here as well: one profile per journal on a device, and a
+journal folder that never holds local state.
 """
 import json
 import os
 import re
 from dataclasses import dataclass
 
-from . import canon, fileio
+from . import canon, fileio, journal, keys
 
 DEFAULT = "default"
 ENV_VAR = "PASSWEIRD_PROFILE"
@@ -135,7 +138,8 @@ def not_found(prof):
 def _installed(include_invalid=False):
     """(name, directory) of every directory that holds a config, default first.
     With include_invalid, also directories whose name is not a valid profile
-    name (a hand rename), which cannot be selected."""
+    name (a hand rename): they cannot be selected, but their journals still
+    count for the checks of §6."""
     found = []
     if os.path.isfile(os.path.join(local_state_dir(), "config")):
         found.append((DEFAULT, local_state_dir()))
@@ -169,10 +173,89 @@ def unselectable():
 
 def read_config(directory):
     """The config of a profile directory as a dict, or None if it is missing or
-    unreadable. Used only for listings; app.load_config is the strict reader."""
+    unreadable. Used only for checks and listings; app.load_config is the
+    strict reader."""
     try:
         config = json.loads(fileio.read_bytes(os.path.join(directory, "config")).decode("utf-8"))
     except (OSError, ValueError):
         return None
     return config if isinstance(config, dict) else None
 
+
+# --- §6: what keeps profiles independent -------------------------------------
+
+def _real(path):
+    return os.path.normcase(os.path.realpath(os.path.abspath(os.path.expanduser(path))))
+
+
+def _is_within(path, ancestor):
+    try:
+        return os.path.commonpath([path, ancestor]) == ancestor
+    except ValueError:              # different drives on Windows
+        return False
+
+
+def check_journal_folder(prof, journal_dir):
+    """§6.2: the journal folder of any profile must not be, or contain, the
+    local state directory or a profile directory. A synchroniser pointed at it
+    would replicate config, seen and any recovery.pw3."""
+    folder = _real(journal_dir)
+    state = [local_state_dir(), prof.directory] + [d for _, d in _installed(include_invalid=True)]
+    for directory in state:
+        if _is_within(_real(directory), folder):
+            raise ProfileError(
+                f"the journal folder {journal_dir} is or contains local state ({directory}). "
+                "A journal folder is synchronised and must never hold config, seen or a "
+                "recovery file: choose another --journal-dir"
+            )
+
+
+def journal_id_at(journal_dir):
+    """The journal_id in the clear header of keys.pw3, or None if the file
+    cannot be read. No secret is involved."""
+    try:
+        return keys.journal_id_of_keys_file(fileio.read_bytes(journal.keys_path(journal_dir)))
+    except (OSError, keys.KeyError_):
+        return None
+
+
+def owner_of_journal(prof, journal_id):
+    """Name of another profile on this device whose journal has this id, or
+    None. Profiles whose keys.pw3 cannot be read (not synced yet, unmounted)
+    are skipped: they cannot be compared."""
+    for name, directory in _installed(include_invalid=True):
+        if _real(directory) == _real(prof.directory):
+            continue
+        config = read_config(directory)
+        journal_dir = config.get("journal_dir") if config else None
+        if isinstance(journal_dir, str) and journal_id_at(journal_dir) == journal_id:
+            return name
+    return None
+
+
+def check_journal_owner(prof, journal_dir, journal_id):
+    """§6.1: one profile per journal on a device. Comparing the identifier
+    rather than the path also catches a symbolic link or a copy."""
+    owner = owner_of_journal(prof, journal_id)
+    if owner is not None:
+        raise ProfileError(
+            f"the journal in {journal_dir} is already attached to profile '{owner}' on this device. "
+            "A journal belongs to one profile only: use that profile, or another journal"
+        )
+
+
+def check_independence(prof, journal_dir, journal_id):
+    check_journal_folder(prof, journal_dir)
+    check_journal_owner(prof, journal_dir, journal_id)
+
+
+def profiles_with_user_id(prof, user_id):
+    """§6.3: other profiles on this device with the same (canonical) user id."""
+    same = []
+    for name, directory in _installed(include_invalid=True):
+        if _real(directory) == _real(prof.directory):
+            continue
+        config = read_config(directory)
+        if config and config.get("user_id") == user_id:
+            same.append(name)
+    return same

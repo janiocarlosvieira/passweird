@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 import stat
 import sys
 
@@ -308,6 +309,93 @@ def test_profiles_separate_state_not_derivation(ready, cli):
     assert a.password == b.password and a.value("Fingerprint:") == b.value("Fingerprint:")
     c = cli(WORK + ["github.com", "--no-journal", "--user-id", USER2], secrets=[MASTER, BOOST])
     assert c.password != a.password
+
+
+# --- independence checks (§6) ------------------------------------------------
+
+def _attached_variants(tmp_path, shared):
+    variants = [shared]
+    if sys.platform != "win32":
+        link = tmp_path / "link-to-journal"
+        link.symlink_to(shared, target_is_directory=True)
+        variants.append(link)
+    copy = tmp_path / "copy-of-journal"
+    shutil.copytree(shared, copy)
+    variants.append(copy)
+    return variants
+
+
+def test_init_and_join_refuse_a_journal_of_another_profile(fast, cli, tmp_path, isolated_home):
+    shared = tmp_path / "synced"
+    assert cli(["--init", "--user-id", USER, "--journal-dir", str(shared)], secrets=INIT).code == 0
+    for folder in _attached_variants(tmp_path, shared):
+        join = cli(WORK + ["--join", "--user-id", USER, "--journal-dir", str(folder)],
+                   secrets=[ACCESS], inputs=[""])
+        assert join.code == 1 and "profile 'default'" in join.err and join.asked == [], folder
+        init = cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(folder)], secrets=INIT2)
+        assert init.code == 1 and "profile 'default'" in init.err and init.asked == [], folder
+    assert not profile_dir(isolated_home, "work").exists()
+
+
+def test_default_cannot_join_a_journal_of_a_named_profile(fast, cli, tmp_path, isolated_home):
+    shared = tmp_path / "synced"
+    assert cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(shared)], secrets=INIT2).code == 0
+    join = cli(["--join", "--user-id", USER2, "--journal-dir", str(shared)], secrets=[ACCESS2], inputs=[""])
+    assert join.code == 1 and "profile 'work'" in join.err
+    assert not (base(isolated_home) / "config").exists()
+
+
+def test_opening_a_journal_of_another_profile_is_refused(ready, work, cli, isolated_home):
+    config_path = profile_dir(isolated_home, "work") / "config"
+    config = config_of(isolated_home, "work")
+    config["journal_dir"] = str(base(isolated_home) / "journal")       # a hand-edited config
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    for prefix, other in ((WORK, "default"), ([], "work")):
+        result = cli(prefix + ["--list"], secrets=[ACCESS])
+        assert result.code == 1 and f"profile '{other}'" in result.err and result.asked == []
+        derived = cli(prefix + ["github.com"], secrets=SECRETS)
+        assert derived.code == 1 and "Password:" not in derived.out
+
+
+def test_an_unavailable_journal_of_another_profile_does_not_block(ready, work, cli, isolated_home):
+    os.unlink(profile_dir(isolated_home, "work") / "journal" / "keys.pw3")
+    assert cli(["--list"], secrets=[ACCESS]).code == 0
+    (profile_dir(isolated_home, "work") / "journal" / "keys.pw3").write_bytes(b"not a keys file")
+    assert cli(["--list"], secrets=[ACCESS]).code == 0
+
+
+@pytest.mark.parametrize("where", [".", ".passweird", ".passweird/v3", ".passweird/v3/profiles",
+                                   ".passweird/v3/profiles/work"])
+def test_a_journal_folder_never_holds_local_state(fast, cli, isolated_home, where):
+    folder = isolated_home / where
+    init = cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(folder)], secrets=INIT2)
+    assert init.code == 1 and "local state" in init.err and init.asked == []
+    join = cli(WORK + ["--join", "--user-id", USER2, "--journal-dir", str(folder)], secrets=[ACCESS2])
+    assert join.code == 1 and "local state" in join.err and join.asked == []
+    assert not profile_dir(isolated_home, "work").exists()
+
+
+def test_default_journal_folder_may_not_hold_local_state_either(fast, cli, isolated_home):
+    result = cli(["--init", "--user-id", USER, "--journal-dir", str(isolated_home / ".passweird")], secrets=INIT)
+    assert result.code == 1 and "local state" in result.err
+    assert not (base(isolated_home) / "config").exists()
+
+
+def test_the_local_state_check_runs_at_every_journal_open(work, cli, isolated_home):
+    config_path = profile_dir(isolated_home, "work") / "config"
+    config = config_of(isolated_home, "work")
+    config["journal_dir"] = str(isolated_home)
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    result = cli(WORK + ["--list"], secrets=[ACCESS2])
+    assert result.code == 1 and "local state" in result.err and result.asked == []
+
+
+def test_init_warns_when_another_profile_has_the_same_user_id(ready, cli):
+    same = cli(WORK + ["--init", "--user-id", " " + USER.upper()], secrets=INIT2)
+    assert same.code == 0 and "same user id" in same.out and "'default'" in same.out
+    assert same.out.index("same user id") < same.out.index("Fingerprint:")
+    other = cli(["--profile", "home", "--init", "--user-id", "outro@example.com"], secrets=INIT2)
+    assert other.code == 0 and "same user id" not in other.out
 
 
 # --- vectors under any profile -----------------------------------------------

@@ -180,11 +180,13 @@ def open_journal(profile, config, prompter, session=None):
     """
     Journal tier. With a session and a local recovery.pw3 (--keep-recovery-file)
     the journal opens from master + boost alone; otherwise the access password
-    is asked for.
+    is asked for. The checks of ADR-0013 §6 run first, before any secret.
     """
+    profiles.check_journal_folder(profile, config["journal_dir"])
     data = read_keys_file(config)
     try:
         journal_id = keys.journal_id_of_keys_file(data)
+        profiles.check_journal_owner(profile, config["journal_dir"], journal_id)
         dek = None
         if session is not None and os.path.exists(recovery_path(profile)):
             try:
@@ -298,14 +300,31 @@ def _new_access_password(prompter, master_c=None, boost_c=None):
     return access
 
 
+def _warn_same_user_id(profile, user_id):
+    """ADR-0013 §6.3: a profile separates state, not derivation."""
+    others = profiles.profiles_with_user_id(profile, user_id)
+    if not others:
+        return
+    names = ", ".join(f"'{name}'" for name in others)
+    say(f"Warning: profile {names} on this device has the same user id.")
+    say("Profiles with the same user id, master password and boost derive the same passwords.")
+    say("To keep them apart, give this profile other secrets: a different user id alone")
+    say("changes every password but protects nothing, because the user id is not secret.")
+
+
 def cmd_init(args, prompter, profile):
     if load_config(profile) is not None:
         raise CliError(f"already initialised ({config_path(profile)}); use --join only on a new device")
     journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
+    profiles.check_journal_folder(profile, journal_dir)
     if os.path.exists(journal.keys_path(journal_dir)):
+        existing = profiles.journal_id_at(journal_dir)
+        if existing is not None:
+            profiles.check_journal_owner(profile, journal_dir, existing)
         raise CliError(f"{journal_dir} already holds a journal; use --join to add this device to it")
 
     user_id = fail_canonical(canon.user_id, args.user_id or prompter.text("User id (e.g. your e-mail)"))
+    _warn_same_user_id(profile, user_id)
     # Each secret is validated as soon as it is entered, not after all three.
     master_c = fail_canonical(canon.master, prompter.secret_twice("Master password"))
     boost_c = fail_canonical(canon.boost, prompter.secret_twice("Boost"))
@@ -341,11 +360,17 @@ def cmd_join(args, prompter, profile):
     if load_config(profile) is not None:
         raise CliError(f"already initialised ({config_path(profile)})")
     journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
+    profiles.check_journal_folder(profile, journal_dir)
     config = {
         "version": CONFIG_VERSION, "alg": derive.ALG, "journal_dir": journal_dir,
         "device_id": journal.new_device_id().hex(), "length": DEFAULT_LENGTH, "classes": DEFAULT_CLASSES,
     }
     data = read_keys_file(config)
+    try:
+        journal_id = keys.journal_id_of_keys_file(data)
+    except keys.KeyError_ as exc:
+        raise CliError(str(exc)) from None
+    profiles.check_journal_owner(profile, journal_dir, journal_id)
     config["user_id"] = fail_canonical(
         canon.user_id, args.user_id or prompter.text("User id (the same one used at --init)"))
     try:
