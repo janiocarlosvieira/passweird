@@ -393,6 +393,39 @@ def test_an_unavailable_journal_of_another_profile_does_not_block(ready, work, c
     assert cli(["--list"], secrets=[ACCESS]).code == 0
 
 
+def test_init_and_join_name_the_profiles_they_could_not_compare(devices, cli, tmp_path, monkeypatch):
+    on, shared = devices
+    go_home(monkeypatch, tmp_path / "c")
+    home_c = tmp_path / "c"
+    for name, user in (("work", USER2), ("home", "outro@example.com")):
+        assert cli(["--profile", name, "--init", "--user-id", user], secrets=INIT2).code == 0
+    os.unlink(profile_dir(home_c, "work") / "journal" / "keys.pw3")
+    join = ["--join", "--user-id", USER, "--journal-dir", str(shared)]
+
+    # One unreadable journal: one warning naming it, at --init and at --join.
+    init = cli(["--init", "--user-id", USER, "--journal-dir", str(shared)], secrets=INIT)
+    assert init.code == 1 and "use --join" in init.err
+    warning = "Warning: could not compare with profile 'work': its journal is not readable now."
+    assert init.out.count("could not compare") == 1 and warning in init.out
+
+    (profile_dir(home_c, "home") / "journal" / "keys.pw3").write_bytes(b"damaged")
+    joined = cli(join, secrets=[ACCESS], inputs=[""])
+    assert joined.code == 0, joined.err
+    assert joined.out.count("could not compare") == 1
+    assert ("Warning: could not compare with profiles 'home', 'work': "
+            "their journals are not readable now.") in joined.out
+
+    # Ordinary journal opens stay quiet.
+    for result in (cli(["--list"], secrets=[ACCESS]), cli(["github.com"], secrets=SECRETS)):
+        assert result.code == 0 and "could not compare" not in result.out + result.err
+
+
+def test_nothing_to_warn_about_when_every_journal_is_readable(fast, cli, tmp_path):
+    assert cli(WORK + ["--init", "--user-id", USER2], secrets=INIT2).code == 0
+    result = cli(["--init", "--user-id", USER, "--journal-dir", str(tmp_path / "mine")], secrets=INIT)
+    assert result.code == 0 and "could not compare" not in result.out
+
+
 @pytest.mark.parametrize("where", [".", ".passweird", ".passweird/v3", ".passweird/v3/profiles",
                                    ".passweird/v3/profiles/work"])
 def test_a_journal_folder_never_holds_local_state(fast, cli, isolated_home, where):

@@ -412,6 +412,18 @@ def _new_access_password(prompter, master_c=None, boost_c=None):
     return access
 
 
+def _warn_not_compared(skipped):
+    """At --init and --join only: the §6.1 check could not see these
+    profiles' journals. Ordinary journal opens stay quiet."""
+    if not skipped:
+        return
+    names = ", ".join(f"'{name}'" for name in skipped)
+    if len(skipped) == 1:
+        say(f"Warning: could not compare with profile {names}: its journal is not readable now.")
+    else:
+        say(f"Warning: could not compare with profiles {names}: their journals are not readable now.")
+
+
 def _warn_same_user_id(profile, user_id):
     """ADR-0013 §6.3: a profile separates state, not derivation."""
     others = profiles.profiles_with_user_id(profile, user_id)
@@ -432,7 +444,7 @@ def cmd_init(args, prompter, profile):
     if os.path.exists(journal.keys_path(journal_dir)):
         existing = profiles.journal_id_at(journal_dir)
         if existing is not None:
-            profiles.check_journal_owner(profile, journal_dir, existing)
+            _warn_not_compared(profiles.check_journal_owner(profile, journal_dir, existing))
         raise CliError(f"{journal_dir} already holds a journal; use --join to add this device to it")
     # --init --key-file pins at creation (ADR-0013 §9). The file is read and
     # checked here, before any secret is typed and before Argon2id runs.
@@ -494,7 +506,7 @@ def cmd_join(args, prompter, profile):
         journal_id = keys.journal_id_of_keys_file(data)
     except keys.KeyError_ as exc:
         raise CliError(str(exc)) from None
-    profiles.check_journal_owner(profile, journal_dir, journal_id)
+    _warn_not_compared(profiles.check_journal_owner(profile, journal_dir, journal_id))
     config["user_id"] = fail_canonical(
         canon.user_id, args.user_id or prompter.text("User id (the same one used at --init)"))
     try:

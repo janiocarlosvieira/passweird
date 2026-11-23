@@ -220,28 +220,37 @@ def journal_id_at(journal_dir):
 
 
 def owner_of_journal(prof, journal_id):
-    """Name of another profile on this device whose journal has this id, or
-    None. Profiles whose keys.pw3 cannot be read (not synced yet, unmounted)
-    are skipped: they cannot be compared."""
+    """
+    Returns (owner, skipped). `owner` is the name of another profile on this
+    device whose journal has this id, or None. `skipped` names the other
+    profiles that could not be compared because their keys.pw3 (or config)
+    cannot be read now: not synced yet, unmounted, damaged.
+    """
+    skipped = []
     for name, directory in _installed(include_invalid=True):
         if _real(directory) == _real(prof.directory):
             continue
         config = read_config(directory)
         journal_dir = config.get("journal_dir") if config else None
-        if isinstance(journal_dir, str) and journal_id_at(journal_dir) == journal_id:
-            return name
-    return None
+        other = journal_id_at(journal_dir) if isinstance(journal_dir, str) else None
+        if other is None:
+            skipped.append(name)
+        elif other == journal_id:
+            return name, skipped
+    return None, skipped
 
 
 def check_journal_owner(prof, journal_dir, journal_id):
     """§6.1: one profile per journal on a device. Comparing the identifier
-    rather than the path also catches a symbolic link or a copy."""
-    owner = owner_of_journal(prof, journal_id)
+    rather than the path also catches a symbolic link or a copy. Returns the
+    names of the profiles that could not be compared."""
+    owner, skipped = owner_of_journal(prof, journal_id)
     if owner is not None:
         raise ProfileError(
             f"the journal in {journal_dir} is already attached to profile '{owner}' on this device. "
             "A journal belongs to one profile only: use that profile, or another journal"
         )
+    return skipped
 
 
 def check_independence(prof, journal_dir, journal_id):
