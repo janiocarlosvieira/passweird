@@ -213,17 +213,29 @@ def check_journal_folder(prof, journal_dir):
 def check_new_profile(prof, journal_dir):
     """
     The checks of §6 that --init and --join run before a profile is created,
-    on top of those of every journal open, so that a profile directory made
-    later does not land in a journal folder either (§6.2):
+    on top of those of every journal open:
 
-    - the journal folder must not be, or lie inside, profiles/, where profile
-      directories are created. A named profile's journal may lie inside that
-      profile's own directory, as its default journal/ does;
-    - the new profile directory must not lie inside the configured journal
-      folder of any profile on this device.
+    - §6.1 by path: the folder must not be the configured journal folder of
+      another profile, compared by real path. The journal_id comparison
+      cannot see a journal whose keys.pw3 is unreadable now (not synced
+      yet, unmounted, damaged), and --init would then write a second
+      journal into that profile's folder;
+    - §6.2, so that a profile directory made later does not land in a
+      journal folder either: the journal folder must not be, or lie inside,
+      profiles/, where profile directories are created (a named profile's
+      journal may lie inside that profile's own directory, as its default
+      journal/ does), and the new profile directory must not lie inside the
+      configured journal folder of any profile on this device.
     """
     check_journal_folder(prof, journal_dir)
     folder, own = _real(journal_dir), _real(prof.directory)
+    others = list(_configured_journal_folders(skip=own))
+    for name, configured, real in others:
+        if real == folder:
+            raise ProfileError(
+                f"{journal_dir} is already the journal folder of profile '{name}' on this device. "
+                "A journal belongs to one profile only: use that profile, or another journal"
+            )
     in_own_directory = not prof.is_default and folder != own and _is_within(folder, own)
     if _is_within(folder, _real(profiles_dir())) and not in_own_directory:
         raise ProfileError(
@@ -231,15 +243,26 @@ def check_new_profile(prof, journal_dir):
             "directories are created: a profile made there would put its local state in a "
             "synchronised folder. Choose another --journal-dir"
         )
-    for name, directory in _installed(include_invalid=True):
-        config = read_config(directory)
-        other = config.get("journal_dir") if config else None
-        if isinstance(other, str) and _is_within(own, _real(other)):
+    for name, configured, real in others:
+        if _is_within(own, real):
             raise ProfileError(
                 f"this profile's directory, {prof.directory}, would lie inside the journal folder of "
-                f"profile '{name}' ({other}), and a synchroniser would replicate its local state: "
+                f"profile '{name}' ({configured}), and a synchroniser would replicate its local state: "
                 "config, seen and any recovery file. A profile cannot be created inside a journal folder"
             )
+
+
+def _configured_journal_folders(skip):
+    """(name, journal_dir as configured, its real path) of every profile on
+    this device whose config names one, except the profile in directory
+    `skip` (a real path)."""
+    for name, directory in _installed(include_invalid=True):
+        if _real(directory) == skip:
+            continue
+        config = read_config(directory)
+        journal_dir = config.get("journal_dir") if config else None
+        if isinstance(journal_dir, str):
+            yield name, journal_dir, _real(journal_dir)
 
 
 def journal_id_at(journal_dir):

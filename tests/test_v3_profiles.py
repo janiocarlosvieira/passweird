@@ -429,6 +429,25 @@ def test_init_and_join_name_the_profiles_they_could_not_compare(devices, cli, tm
         assert result.code == 0 and "could not compare" not in result.out + result.err
 
 
+def test_the_folder_of_a_profile_whose_journal_is_unreadable_is_still_its_own(fast, cli, isolated_home, tmp_path):
+    synced = tmp_path / "synced-work"
+    assert cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(synced)], secrets=INIT2).code == 0
+    os.unlink(synced / "keys.pw3")                          # not synced yet, unmounted, damaged
+    variants = [synced]
+    if sys.platform != "win32":
+        link = tmp_path / "link-to-synced-work"
+        link.symlink_to(synced, target_is_directory=True)
+        variants.append(link)
+    for folder in variants:
+        init = cli(["--init", "--user-id", USER, "--journal-dir", str(folder)], secrets=INIT)
+        assert init.code == 1 and "already the journal folder of profile 'work'" in init.err, folder
+        assert init.asked == []
+        join = cli(["--join", "--user-id", USER, "--journal-dir", str(folder)], secrets=[ACCESS], inputs=[""])
+        assert join.code == 1 and "already the journal folder of profile 'work'" in join.err, folder
+        assert join.asked == []
+    assert not (synced / "keys.pw3").exists() and not (base(isolated_home) / "config").exists()
+
+
 def test_nothing_to_warn_about_when_every_journal_is_readable(fast, cli, tmp_path):
     assert cli(WORK + ["--init", "--user-id", USER2], secrets=INIT2).code == 0
     result = cli(["--init", "--user-id", USER, "--journal-dir", str(tmp_path / "mine")], secrets=INIT)
