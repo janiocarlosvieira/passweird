@@ -210,6 +210,38 @@ def check_journal_folder(prof, journal_dir):
             )
 
 
+def check_new_profile(prof, journal_dir):
+    """
+    The checks of §6 that --init and --join run before a profile is created,
+    on top of those of every journal open, so that a profile directory made
+    later does not land in a journal folder either (§6.2):
+
+    - the journal folder must not be, or lie inside, profiles/, where profile
+      directories are created. A named profile's journal may lie inside that
+      profile's own directory, as its default journal/ does;
+    - the new profile directory must not lie inside the configured journal
+      folder of any profile on this device.
+    """
+    check_journal_folder(prof, journal_dir)
+    folder, own = _real(journal_dir), _real(prof.directory)
+    in_own_directory = not prof.is_default and folder != own and _is_within(folder, own)
+    if _is_within(folder, _real(profiles_dir())) and not in_own_directory:
+        raise ProfileError(
+            f"the journal folder {journal_dir} is or lies inside {profiles_dir()}, where profile "
+            "directories are created: a profile made there would put its local state in a "
+            "synchronised folder. Choose another --journal-dir"
+        )
+    for name, directory in _installed(include_invalid=True):
+        config = read_config(directory)
+        other = config.get("journal_dir") if config else None
+        if isinstance(other, str) and _is_within(own, _real(other)):
+            raise ProfileError(
+                f"this profile's directory, {prof.directory}, would lie inside the journal folder of "
+                f"profile '{name}' ({other}), and a synchroniser would replicate its local state: "
+                "config, seen and any recovery file. A profile cannot be created inside a journal folder"
+            )
+
+
 def journal_id_at(journal_dir):
     """The journal_id in the clear header of keys.pw3, or None if the file
     cannot be read. No secret is involved."""

@@ -453,7 +453,7 @@ def cmd_init(args, prompter, profile):
     if load_config(profile) is not None:
         raise CliError(f"already initialised ({config_path(profile)}); use --join only on a new device")
     journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
-    profiles.check_journal_folder(profile, journal_dir)
+    profiles.check_new_profile(profile, journal_dir)
     if os.path.exists(journal.keys_path(journal_dir)):
         existing = profiles.journal_id_at(journal_dir)
         if existing is not None:
@@ -509,6 +509,7 @@ def cmd_join(args, prompter, profile):
     if load_config(profile) is not None:
         raise CliError(f"already initialised ({config_path(profile)})")
     journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
+    profiles.check_new_profile(profile, journal_dir)
     data, _, skipped = read_keys_file(profile, journal_dir)
     _warn_not_compared(skipped)
     config = {

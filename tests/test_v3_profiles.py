@@ -452,6 +452,49 @@ def test_default_journal_folder_may_not_hold_local_state_either(fast, cli, isola
     assert not (base(isolated_home) / "config").exists()
 
 
+# A profile directory made later must not land in a journal folder either.
+
+@pytest.mark.parametrize("name, where", [
+    ("default", ".passweird/v3/profiles"), ("default", ".passweird/v3/profiles/shared"),
+    ("default", ".passweird/v3/profiles/work/journal"),
+    ("work", ".passweird/v3/profiles/shared"), ("work", ".passweird/v3/profiles/home/journal"),
+])
+def test_no_journal_folder_inside_the_profiles_directory(fast, cli, isolated_home, name, where):
+    select, folder = ["--profile", name], str(isolated_home / where)
+    init = cli(select + ["--init", "--user-id", USER2, "--journal-dir", folder], secrets=INIT2)
+    assert init.code == 1 and "where profile directories are created" in init.err and init.asked == []
+    join = cli(select + ["--join", "--user-id", USER2, "--journal-dir", folder], secrets=[ACCESS2], inputs=[""])
+    assert join.code == 1 and "where profile directories are created" in join.err and join.asked == []
+    assert not (isolated_home / ".passweird").exists()
+
+
+def test_a_named_profile_may_keep_its_journal_inside_its_own_directory(fast, cli, isolated_home):
+    folder = profile_dir(isolated_home, "work") / "synced"
+    assert cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(folder)], secrets=INIT2).code == 0
+    assert cli(WORK + ["--list"], secrets=[ACCESS2]).code == 0
+
+
+@pytest.mark.parametrize("owner, folder, created", [("default", ".passweird/v3/profiles", "work"),
+                                                    ("work", ".passweird/v3/profiles/shared", "shared")])
+def test_init_does_not_create_a_profile_inside_a_journal_folder(fast, cli, isolated_home, owner, folder, created):
+    assert cli(["--profile", owner, "--init", "--user-id", USER], secrets=INIT).code == 0
+    point_journal(isolated_home, owner, isolated_home / folder)     # made before this check, or edited
+    init = cli(["--profile", created, "--init", "--user-id", USER2, "--keep-recovery-file"], secrets=INIT2)
+    assert init.code == 1 and f"journal folder of profile '{owner}'" in init.err and init.asked == []
+    assert not profile_dir(isolated_home, created).exists()
+
+
+def test_join_does_not_create_a_profile_inside_a_journal_folder(devices, cli, tmp_path, monkeypatch):
+    on, shared = devices
+    home = tmp_path / "c"
+    go_home(monkeypatch, home)
+    assert cli(["--init", "--user-id", USER2], secrets=INIT2).code == 0
+    point_journal(home, "default", base(home) / "profiles")
+    joined = cli(WORK + ["--join", "--user-id", USER, "--journal-dir", str(shared)], secrets=[ACCESS], inputs=[""])
+    assert joined.code == 1 and "journal folder of profile 'default'" in joined.err and joined.asked == []
+    assert not profile_dir(home, "work").exists()
+
+
 def test_the_local_state_check_runs_at_every_journal_open(work, cli, isolated_home):
     config_path = profile_dir(isolated_home, "work") / "config"
     config = config_of(isolated_home, "work")
