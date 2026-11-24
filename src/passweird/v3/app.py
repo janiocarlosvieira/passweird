@@ -15,6 +15,8 @@ Rules this module enforces:
   - a journal entry's counter, length and classes win over command-line
     flags unless --force is given;
   - every command acts on one profile (ADR-0013), resolved once by main.py;
+  - keys.pw3 is read only through read_keys_file, after the checks of
+    ADR-0013 §6;
   - a keyfile pinned to the profile is checked before Argon2id runs.
 """
 import datetime
@@ -280,12 +282,26 @@ def unpin(config):
     config.pop("key_file_sha256", None)
 
 
-def read_keys_file(config):
-    path = journal.keys_path(config["journal_dir"])
+def read_keys_file(profile, journal_dir):
+    """
+    The keys.pw3 of a profile's journal folder, as (bytes, journal_id,
+    skipped), after the checks of ADR-0013 §6: the folder holds no local
+    state (§6.2) and its journal is not attached to another profile on this
+    device (§6.1). Every path that opens keys.pw3 reads it here, so no command
+    can skip them. `skipped` names the profiles whose journals could not be
+    compared; only --init and --join report them.
+    """
+    profiles.check_journal_folder(profile, journal_dir)
+    path = journal.keys_path(journal_dir)
     try:
-        return fileio.read_bytes(path)
+        data = fileio.read_bytes(path)
     except FileNotFoundError:
         raise CliError(f"{path} not found: has the journal folder finished syncing?") from None
+    try:
+        journal_id = keys.journal_id_of_keys_file(data)
+    except keys.KeyError_ as exc:
+        raise CliError(str(exc)) from None
+    return data, journal_id, profiles.check_journal_owner(profile, journal_dir, journal_id)
 
 
 def open_journal(profile, config, prompter, session=None):
@@ -294,11 +310,8 @@ def open_journal(profile, config, prompter, session=None):
     the journal opens from master + boost alone; otherwise the access password
     is asked for. The checks of ADR-0013 §6 run first, before any secret.
     """
-    profiles.check_journal_folder(profile, config["journal_dir"])
-    data = read_keys_file(config)
+    data, journal_id, _ = read_keys_file(profile, config["journal_dir"])
     try:
-        journal_id = keys.journal_id_of_keys_file(data)
-        profiles.check_journal_owner(profile, config["journal_dir"], journal_id)
         dek = None
         if session is not None and os.path.exists(recovery_path(profile)):
             try:
@@ -496,17 +509,12 @@ def cmd_join(args, prompter, profile):
     if load_config(profile) is not None:
         raise CliError(f"already initialised ({config_path(profile)})")
     journal_dir = os.path.abspath(os.path.expanduser(args.journal_dir or default_journal_dir(profile)))
-    profiles.check_journal_folder(profile, journal_dir)
+    data, _, skipped = read_keys_file(profile, journal_dir)
+    _warn_not_compared(skipped)
     config = {
         "version": CONFIG_VERSION, "alg": derive.ALG, "journal_dir": journal_dir,
         "device_id": journal.new_device_id().hex(), "length": DEFAULT_LENGTH, "classes": DEFAULT_CLASSES,
     }
-    data = read_keys_file(config)
-    try:
-        journal_id = keys.journal_id_of_keys_file(data)
-    except keys.KeyError_ as exc:
-        raise CliError(str(exc)) from None
-    _warn_not_compared(profiles.check_journal_owner(profile, journal_dir, journal_id))
     config["user_id"] = fail_canonical(
         canon.user_id, args.user_id or prompter.text("User id (the same one used at --init)"))
     try:
@@ -909,7 +917,7 @@ def cmd_import_list(args, prompter, profile):
 
 def cmd_change_access_password(args, prompter, profile):
     config = require_config(profile)
-    data = read_keys_file(config)
+    data, _, _ = read_keys_file(profile, config["journal_dir"])
     try:
         journal_id, dek = keys.open_keys_file(data, prompter.secret("Current access password"))
     except keys.WrongSecret:
@@ -933,7 +941,7 @@ def cmd_recover(args, prompter, profile):
     """Lost access password: open the journal with master + boost and the
     recovery text, then set a new access password."""
     config = require_config(profile)
-    data = read_keys_file(config)
+    _, current_id, _ = read_keys_file(profile, config["journal_dir"])
     blob = read_recovery(prompter, args.recovery_file)
     session = open_session(prompter, config["user_id"])
     try:
@@ -943,7 +951,7 @@ def cmd_recover(args, prompter, profile):
             raise CliError("the recovery text does not open with this master password and boost") from None
         except keys.KeyError_ as exc:
             raise CliError(str(exc)) from None
-        if journal_id != keys.journal_id_of_keys_file(data):
+        if journal_id != current_id:
             raise CliError("the recovery text belongs to a different journal")
         new = _new_access_password(prompter)
         fileio.atomic_write(journal.keys_path(config["journal_dir"]),

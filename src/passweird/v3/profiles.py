@@ -253,11 +253,6 @@ def check_journal_owner(prof, journal_dir, journal_id):
     return skipped
 
 
-def check_independence(prof, journal_dir, journal_id):
-    check_journal_folder(prof, journal_dir)
-    check_journal_owner(prof, journal_dir, journal_id)
-
-
 def profiles_with_user_id(prof, user_id):
     """§6.3: other profiles on this device with the same (canonical) user id."""
     same = []

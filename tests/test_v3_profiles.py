@@ -18,6 +18,7 @@ MASTER2, BOOST2, ACCESS2, USER2 = ("mestra do trabalho", "mesa cadeira janela po
 SECRETS2 = [MASTER2, BOOST2, ACCESS2]
 INIT = [MASTER, MASTER, BOOST, BOOST, ACCESS, ACCESS]
 INIT2 = [MASTER2, MASTER2, BOOST2, BOOST2, ACCESS2, ACCESS2]
+NEW_ACCESS = "nova senha de acesso"
 WORK = ["--profile", "work"]
 
 
@@ -37,6 +38,14 @@ def config_of(home, name="default"):
 def snapshot(root, skip=None):
     return {p: hashlib.sha256(open(p, "rb").read()).hexdigest()
             for p in _files(root) if not (skip and p.startswith(str(skip)))}
+
+
+def point_journal(home, name, folder):
+    """Hand-edits a profile's config so that it names another journal folder."""
+    directory = base(home) if name == "default" else profile_dir(home, name)
+    config = config_of(home, name)
+    config["journal_dir"] = str(folder)
+    (directory / "config").write_text(json.dumps(config), encoding="utf-8")
 
 
 def go_home(monkeypatch, home):
@@ -450,6 +459,72 @@ def test_the_local_state_check_runs_at_every_journal_open(work, cli, isolated_ho
     config_path.write_text(json.dumps(config), encoding="utf-8")
     result = cli(WORK + ["--list"], secrets=[ACCESS2])
     assert result.code == 1 and "local state" in result.err and result.asked == []
+
+
+@pytest.mark.parametrize("command", ["--change-access-password", "--recover"])
+def test_access_password_commands_refuse_the_journal_of_another_profile(ready, cli, isolated_home, tmp_path,
+                                                                         command):
+    # "work" has the user id and every secret of default (allowed, with the
+    # warning of §6.3), so only the checks of §6 keep it out of default's journal.
+    assert cli(WORK + ["--init", "--user-id", USER], secrets=INIT).code == 0
+    recovery = tmp_path / "recovery.txt"
+    recovery.write_text(ready.recovery_text, encoding="utf-8")
+    argv, secrets = {
+        "--change-access-password": ([command], [ACCESS, NEW_ACCESS, NEW_ACCESS]),
+        "--recover": ([command, "--recovery-file", str(recovery)], [MASTER, BOOST, NEW_ACCESS, NEW_ACCESS]),
+    }[command]
+    point_journal(isolated_home, "work", base(isolated_home) / "journal")
+    before = snapshot(base(isolated_home), skip=base(isolated_home) / "profiles")
+    result = cli(WORK + argv, secrets=secrets)
+    assert result.code == 1 and "profile 'default'" in result.err and result.asked == []
+    assert snapshot(base(isolated_home), skip=base(isolated_home) / "profiles") == before
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symbolic links")
+def test_changing_the_access_password_through_a_repointed_link_is_refused(ready, cli, isolated_home, tmp_path):
+    link, real = tmp_path / "work-journal", tmp_path / "work-real"
+    real.mkdir()
+    link.symlink_to(real, target_is_directory=True)
+    assert cli(WORK + ["--init", "--user-id", USER2, "--journal-dir", str(link)], secrets=INIT2).code == 0
+    link.unlink()
+    link.symlink_to(base(isolated_home) / "journal", target_is_directory=True)     # re-pointed later
+    before = snapshot(base(isolated_home), skip=base(isolated_home) / "profiles")
+    result = cli(WORK + ["--change-access-password"], secrets=[ACCESS, NEW_ACCESS, NEW_ACCESS])
+    assert result.code == 1 and "profile 'default'" in result.err and result.asked == []
+    assert snapshot(base(isolated_home), skip=base(isolated_home) / "profiles") == before
+    assert cli(["--list"], secrets=[ACCESS]).code == 1          # default sees work on its journal too
+
+
+@pytest.mark.parametrize("where, message", [("default's journal", "profile 'default'"),
+                                            ("the home directory", "local state")])
+def test_every_command_that_opens_keys_pw3_runs_the_checks(ready, work, cli, isolated_home, tmp_path,
+                                                           where, message):
+    recovery = tmp_path / "recovery.txt"
+    recovery.write_text(work.recovery_text, encoding="utf-8")
+    sites = tmp_path / "sites.txt"
+    sites.write_text("example.org\n", encoding="utf-8")
+    keyfile = tmp_path / "k.pw3f"
+    assert cli(WORK + ["--gen-keyfile", str(keyfile)], secrets=[MASTER2, BOOST2]).code == 0
+    point_journal(isolated_home, "work",
+                  base(isolated_home) / "journal" if where == "default's journal" else isolated_home)
+    before = snapshot(base(isolated_home), skip=base(isolated_home) / "profiles")
+    commands = [
+        (["github.com"], SECRETS2), (["github.com", "--totp"], SECRETS2),
+        (["--list"], [ACCESS2]), (["--show", "github.com"], [ACCESS2]), (["--history"], [ACCESS2]),
+        (["--edit", "github.com", "--notes", "x"], [ACCESS2]), (["--resolve", "github.com"], [ACCESS2]),
+        (["--delete", "github.com"], [ACCESS2]), (["--import-list", str(sites)], [ACCESS2]),
+        (["--change-access-password"], [ACCESS2, NEW_ACCESS, NEW_ACCESS]),
+        (["--recover", "--recovery-file", str(recovery)], [MASTER2, BOOST2, NEW_ACCESS, NEW_ACCESS]),
+        (["--print-recovery"], SECRETS2), (["--pin-key-file", str(keyfile)], SECRETS2),
+        (["--export-kdbx", str(tmp_path / "x.kdbx")], SECRETS2),
+        (["--mass-rekey", "--export-kdbx", str(tmp_path / "y.kdbx")], SECRETS2),
+        (["--migrate-v2", "--keep-v2-files"], ["senha mestra antiga", ACCESS2]),
+    ]
+    for argv, secrets in commands:
+        result = cli(WORK + argv, secrets=secrets)
+        assert result.code == 1 and message in result.err, (argv, result.err)
+        assert "Password:" not in result.out and "Access password changed" not in result.out, argv
+    assert snapshot(base(isolated_home), skip=base(isolated_home) / "profiles") == before
 
 
 def test_init_warns_when_another_profile_has_the_same_user_id(ready, cli):
