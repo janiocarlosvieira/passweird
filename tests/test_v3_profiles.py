@@ -110,24 +110,30 @@ def test_windows_device_names_are_refused_everywhere(raw):
 # --- selection ---------------------------------------------------------------
 
 def test_selection_order():
-    env = profiles.ENV_VAR
-    assert profiles.resolve(None, {}).name == "default"
-    assert profiles.resolve(None, {env: ""}).name == "default"
-    assert profiles.resolve(None, {env: "Work"}).name == "work"
-    assert profiles.resolve("home", {env: "work"}).name == "home"
-    assert profiles.resolve("default", {env: "work"}).name == "default"
-    for cli_value, environ in (("", {}), ("con", {}), (None, {env: "a_b"})):
+    assert profiles.resolve(None, None).name == "default"
+    assert profiles.resolve(None, "").name == "default"
+    assert profiles.resolve(None, "Work").name == "work"
+    assert profiles.resolve("home", "work").name == "home"
+    assert profiles.resolve("default", "work").name == "default"
+    for cli_value, env_value in (("", None), ("con", None), (None, "a_b")):
         with pytest.raises(profiles.ProfileError):
-            profiles.resolve(cli_value, environ)
+            profiles.resolve(cli_value, env_value)
+
+
+def test_only_main_reads_the_environment(monkeypatch):
+    # ADR-0013 §7: main.py reads PASSWEIRD_PROFILE and passes its value down.
+    monkeypatch.setenv(profiles.ENV_VAR, "work")
+    assert profiles.resolve(None).name == "default"
+    assert profiles.resolve(None, "work").name == "work"
 
 
 def test_paths_of_default_and_named_profiles(isolated_home):
-    default = profiles.resolve(None, {})
+    default = profiles.resolve(None)
     assert default.is_default and default.directory == str(base(isolated_home))
     assert default.config_path == str(base(isolated_home) / "config")
     assert default.recovery_path == str(base(isolated_home) / "recovery.pw3")
     assert default.default_journal_dir == str(base(isolated_home) / "journal")
-    named = profiles.resolve("work", {})
+    named = profiles.resolve("work")
     assert not named.is_default and named.directory == str(profile_dir(isolated_home, "work"))
     assert named.config_path == str(profile_dir(isolated_home, "work") / "config")
     assert named.recovery_path == str(profile_dir(isolated_home, "work") / "recovery.pw3")
@@ -205,8 +211,8 @@ def test_a_named_profile_shows_its_name_first_and_on_every_prompt(work, cli):
 def test_text_prompts_carry_the_name_too(isolated_home, monkeypatch):
     asked = []
     monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "x")
-    app.Prompter(profile=profiles.resolve("work", {})).text("User id")
-    app.Prompter(profile=profiles.resolve(None, {})).text("User id")
+    app.Prompter(profile=profiles.resolve("work")).text("User id")
+    app.Prompter(profile=profiles.resolve(None)).text("User id")
     app.Prompter().text("User id")
     assert asked == ["[work] User id: ", "User id: ", "User id: "]
 

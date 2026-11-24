@@ -4,6 +4,7 @@
 # Licensed under the GNU General Public License v3.0
 
 import argparse
+import os
 import sys
 
 from .v3 import app, migrate, profiles
@@ -183,8 +184,9 @@ def dispatch(args, prompter, profile):
 
 
 def run(args):
-    """Resolves the profile once (ADR-0013 §4) and runs the command in it."""
-    profile = profiles.resolve(args.profile)
+    """Resolves the profile once (ADR-0013 §4) and runs the command in it.
+    PASSWEIRD_PROFILE is read here and in no other module (§7)."""
+    profile = profiles.resolve(args.profile, os.environ.get(profiles.ENV_VAR))
     no_profile_needed = args.gen_boost is not None or args.list_profiles
     # Only --init and --join create a profile directory, so a mistyped name
     # never yields an empty profile, nor falls back to a stateless run.

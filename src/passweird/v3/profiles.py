@@ -9,8 +9,9 @@ file and no record, so renaming a profile is renaming its directory.
     ~/.passweird/v3/profiles/<name>/  every other profile
 
 The profile is chosen explicitly every time: --profile, then PASSWEIRD_PROFILE,
-then "default". Nothing remembers the last one used. This is the only module
-that reads PASSWEIRD_PROFILE.
+then "default". Nothing remembers the last one used. main.py reads
+PASSWEIRD_PROFILE, resolves the profile once and passes it down (ADR-0013 §7);
+this module is handed the variable's value and never reads the environment.
 
 The checks of §6 live here as well: one profile per journal on a device, and a
 journal folder that never holds local state.
@@ -113,15 +114,14 @@ def profile(name):
     return Profile(name, os.path.join(profiles_dir(), name))
 
 
-def resolve(cli_value, environ=None):
+def resolve(cli_value, env_value=None):
     """--profile NAME if given, else PASSWEIRD_PROFILE if set and not empty,
-    else "default"."""
-    environ = os.environ if environ is None else environ
+    else "default". `env_value` is the value of PASSWEIRD_PROFILE, None when
+    it is unset, read by the caller (main.py)."""
     if cli_value is not None:
         return profile(cli_value)
-    from_env = environ.get(ENV_VAR, "")
-    if from_env != "":
-        return profile(from_env)
+    if env_value:
+        return profile(env_value)
     return profile(DEFAULT)
 
 
