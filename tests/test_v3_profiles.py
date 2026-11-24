@@ -11,6 +11,7 @@ import pytest
 from passweird.v3 import app, derive, keys, profiles
 from test_v3_cli import ACCESS, BOOST, MASTER, SECRETS, USER, _files
 from test_v3_cli import cli, devices, fast, ready  # noqa: F401  (fixtures)
+from test_v3_migrate import V2_MASTER, v2_state  # noqa: F401  (fixture)
 from v3_support import load
 
 MASTER2, BOOST2, ACCESS2, USER2 = ("mestra do trabalho", "mesa cadeira janela porta tapete",
@@ -401,6 +402,18 @@ def test_opening_a_journal_of_another_profile_is_refused(ready, work, cli, isola
         assert derived.code == 1 and "Password:" not in derived.out
 
 
+def test_opening_a_journal_of_another_profile_through_a_link_or_a_copy_is_refused(ready, work, cli,
+                                                                                   isolated_home, tmp_path):
+    for folder in _attached_variants(tmp_path, base(isolated_home) / "journal")[1:]:     # not the folder itself
+        point_journal(isolated_home, "work", folder)
+        for prefix, other, secrets in ((WORK, "default", SECRETS2), ([], "work", SECRETS)):
+            listed = cli(prefix + ["--list"], secrets=[secrets[2]])
+            assert listed.code == 1 and f"profile '{other}'" in listed.err and listed.asked == [], folder
+            derived = cli(prefix + ["github.com"], secrets=secrets)
+            assert derived.code == 1 and f"profile '{other}'" in derived.err, folder
+            assert "Password:" not in derived.out
+
+
 def test_an_unavailable_journal_of_another_profile_does_not_block(ready, work, cli, isolated_home):
     os.unlink(profile_dir(isolated_home, "work") / "journal" / "keys.pw3")
     assert cli(["--list"], secrets=[ACCESS]).code == 0
@@ -668,6 +681,28 @@ def test_a_missing_or_different_keyfile_stops_before_argon2(pinned, cli, tmp_pat
     assert cli(["github.com"], secrets=SECRETS).password == expected(stashed)[0]
 
 
+@pytest.mark.parametrize("flags", [["--totp"], ["--ssl"], ["--rsa", "2048"], ["--pgp"], ["--bump"]])
+def test_a_missing_keyfile_stops_key_material_and_rotation_before_argon2(pinned, cli, tmp_path, stretches, flags):
+    shutil.move(pinned, tmp_path / "away.pw3f")
+    del stretches[:]
+    result = cli(["github.com"] + flags, secrets=SECRETS)
+    assert result.code == 1 and str(pinned) in result.err and result.asked == [] and stretches == []
+
+
+@pytest.mark.parametrize("command", ["--export-kdbx", "--mass-rekey", "--no-journal"])
+def test_another_key_file_is_refused_on_export_rekey_and_stateless_runs(pinned, cli, tmp_path, stretches, command):
+    other = tmp_path / "other.pw3f"                     # made for these very secrets, but not the pinned one
+    assert cli(["--gen-keyfile", str(other)], secrets=[MASTER, BOOST]).code == 0
+    cli(["github.com"], secrets=SECRETS)
+    argv = {"--export-kdbx": ["--export-kdbx", str(tmp_path / "x.kdbx")],
+            "--mass-rekey": ["--mass-rekey", "--export-kdbx", str(tmp_path / "x.kdbx"), "--drop-key-file"],
+            "--no-journal": ["github.com", "--no-journal"]}[command]
+    del stretches[:]
+    result = cli(argv + ["--key-file", str(other)], secrets=SECRETS)
+    assert result.code == 1 and str(other) in result.err and result.asked == [] and stretches == []
+    assert not (tmp_path / "x.kdbx").exists()
+
+
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="POSIX permissions, not root")
 def test_an_unreadable_keyfile_stops_before_argon2(pinned, cli, stretches):
     os.chmod(pinned, 0)
@@ -697,6 +732,21 @@ def test_pinning_a_registry_with_entries_needs_force(keyfile, cli, isolated_home
     assert "key_file" not in config_of(isolated_home)
     assert cli(["--pin-key-file", str(keyfile), "--force"], secrets=SECRETS).code == 0
     assert config_of(isolated_home)["key_file"] == str(keyfile)
+
+
+def test_repinning_another_keyfile_needs_force_when_the_registry_has_entries(pinned, cli, tmp_path,
+                                                                             isolated_home):
+    cli(["github.com"], secrets=SECRETS)
+    before = config_of(isolated_home)
+    other = tmp_path / "other.pw3f"
+    assert cli(["--gen-keyfile", str(other)], secrets=[MASTER, BOOST]).code == 0
+    refused = cli(["--pin-key-file", str(other)], secrets=SECRETS)
+    assert refused.code == 1 and "--force" in refused.err
+    assert config_of(isolated_home) == before
+    assert cli(["github.com"], secrets=SECRETS).password == expected(pinned)[0]
+    assert cli(["--pin-key-file", str(other), "--force"], secrets=SECRETS).code == 0
+    assert config_of(isolated_home)["key_file"] == str(other)
+    assert cli(["github.com"], secrets=SECRETS).password == expected(other)[0]
 
 
 def test_deleted_entries_count_for_force_too(keyfile, cli, isolated_home):
@@ -802,6 +852,53 @@ def test_mass_rekey_new_key_file_becomes_the_pin(pinned, cli, tmp_path, isolated
     assert cli(["github.com"], secrets=[NEW_MASTER, NEW_BOOST, ACCESS]).password == new
 
 
+def test_mass_rekey_failures_leave_the_pin_unchanged(pinned, cli, tmp_path, isolated_home, stretches):
+    cli(["github.com"], secrets=SECRETS)
+    before = config_of(isolated_home)
+    new_keyfile = tmp_path / "new.pw3f"
+    assert cli(["--gen-keyfile", str(new_keyfile)], secrets=[NEW_MASTER, NEW_BOOST]).code == 0
+    junk, taken = tmp_path / "junk", tmp_path / "taken.kdbx"
+    junk.write_bytes(b"x" * 65)
+    taken.write_bytes(b"x")
+
+    def rekey(out, new):
+        return cli(["--mass-rekey", "--export-kdbx", str(out), "--new-key-file", str(new)], secrets=REKEY)
+
+    del stretches[:]
+    for new in (tmp_path / "missing.pw3f", junk):               # read before Argon2id
+        result = rekey(tmp_path / "a.kdbx", new)
+        assert result.code == 1 and str(new) in result.err and result.asked == [] and stretches == [], new
+    of_the_old_secrets = rekey(tmp_path / "b.kdbx", pinned)
+    assert of_the_old_secrets.code == 1 and "does not open" in of_the_old_secrets.err
+    target_exists = rekey(taken, new_keyfile)
+    assert target_exists.code == 1 and "refusing to overwrite" in target_exists.err
+    assert config_of(isolated_home) == before
+    assert not (tmp_path / "a.kdbx").exists() and not (tmp_path / "b.kdbx").exists()
+    assert cli(["github.com"], secrets=SECRETS).password == expected(pinned)[0]
+
+
+def test_migrate_v2_on_a_pinned_profile(pinned, v2_state, cli, tmp_path, stretches):
+    pykeepass = pytest.importorskip("pykeepass")
+    secrets = [V2_MASTER, "", MASTER, BOOST, ACCESS, "k", "k"]    # v2 master, v2 temporal secret, v3 tiers, KDBX
+    away = tmp_path / "away.pw3f"
+    shutil.move(pinned, away)
+    del stretches[:]
+    stopped = cli(["--migrate-v2", "--keep-v2-files", "--export-kdbx", str(tmp_path / "m.kdbx")], secrets=secrets)
+    assert stopped.code == 1 and str(pinned) in stopped.err and stretches == []
+    assert "Master password: " not in stopped.asked and not (tmp_path / "m.kdbx").exists()
+    shutil.move(away, pinned)
+    out = tmp_path / "n.kdbx"
+    done = cli(["--migrate-v2", "--keep-v2-files", "--export-kdbx", str(out)], secrets=secrets)
+    assert done.code == 0, done.err
+    exported = pykeepass.PyKeePass(str(out), password="k").find_entries(title="github.com (v3)", first=True)
+    with derive.Session.open(MASTER, BOOST, USER) as session:       # github.com came from v2 at 24, classes 7
+        plain = derive.password(session.prk, "github.com", "", 1, 24, 7)
+        session.use_keyfile(keys.open_keyfile(pinned.read_bytes(), session.prk_none))
+        with_keyfile = derive.password(session.prk, "github.com", "", 1, 24, 7)
+    assert exported.password == with_keyfile != plain
+    assert cli(["github.com"], secrets=SECRETS).password == with_keyfile
+
+
 def test_without_a_pin_mass_rekey_keeps_todays_meaning(ready, cli, tmp_path, isolated_home):
     pytest.importorskip("pykeepass")
     cli(["github.com"], secrets=SECRETS)
@@ -876,6 +973,17 @@ def test_join_asks_whether_a_keyfile_is_used(devices, cli, tmp_path, monkeypatch
     refused = cli(join, stdin=f"{ACCESS}\n{junk}\n")
     assert refused.code == 1 and str(junk) in refused.err
     assert not (tmp_path / "f" / ".passweird" / "v3" / "config").exists()
+
+
+def test_join_with_a_missing_key_file_writes_nothing(devices, cli, tmp_path, monkeypatch):
+    on, shared = devices
+    go_home(monkeypatch, tmp_path / "c")
+    missing = tmp_path / "missing.pw3f"
+    for argv in ([], WORK):
+        result = cli(argv + ["--join", "--user-id", USER, "--journal-dir", str(shared), "--key-file", str(missing)],
+                     secrets=[ACCESS])
+        assert result.code == 1 and str(missing) in result.err, argv
+    assert not (tmp_path / "c" / ".passweird").exists()
 
 
 def test_join_only_checks_the_header_then_the_first_derivation_fails(devices, cli, tmp_path, monkeypatch):
