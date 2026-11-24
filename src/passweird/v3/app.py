@@ -568,7 +568,9 @@ def cmd_pin_key_file(args, prompter, profile):
     ADR-0013 §9. A file with the pinned hash only moves the pin, with no
     secret: it is the same keyfile. Any other file is opened under master and
     boost (a keyfile made for other secrets fails its GCM tag), and pinning a
-    registry that already has entries needs --force.
+    registry that already has entries needs --force. Deleted entries count:
+    a deleted site created again resumes its counter and must give back its
+    old password.
     """
     config = require_config(profile)
     path = _absolute(args.pin_key_file)
@@ -586,12 +588,17 @@ def cmd_pin_key_file(args, prompter, profile):
     try:
         use_keyfile(session, path, data)
         book = open_journal(profile, config, prompter, session)
-        count = len(book.listing())
+        entries = book.listing(include_deleted=True)
     finally:
         session.close()
+    count, deleted = len(entries), sum(1 for entry in entries if entry.deleted)
     if count and not args.force:
+        held = f"{count} entr{'y' if count == 1 else 'ies'}"
+        if deleted:
+            held += (" (deleted" if deleted == count else f" ({deleted} deleted") + \
+                ", but a site created again resumes its counter)"
         raise CliError(
-            f"the registry already has {count} entr{'y' if count == 1 else 'ies'}. From now on every "
+            f"the registry already has {held}. From now on every "
             "entry would derive with this keyfile, which is right only if they were already derived "
             "with it: if so, repeat with --force. To move a registry onto a keyfile, use "
             "--mass-rekey --new-key-file PATH"

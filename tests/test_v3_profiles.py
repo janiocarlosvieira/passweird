@@ -556,6 +556,18 @@ def test_pinning_a_registry_with_entries_needs_force(keyfile, cli, isolated_home
     assert config_of(isolated_home)["key_file"] == str(keyfile)
 
 
+def test_deleted_entries_count_for_force_too(keyfile, cli, isolated_home):
+    # A deleted site created again resumes its counter and gives back its old
+    # password; once pinned, it would silently give another one.
+    before = cli(["github.com"], secrets=SECRETS).password
+    assert cli(["--delete", "github.com"], secrets=[ACCESS]).code == 0
+    assert "empty" in cli(["--list"], secrets=[ACCESS]).out
+    refused = cli(["--pin-key-file", str(keyfile)], secrets=SECRETS)
+    assert refused.code == 1 and "--force" in refused.err and "1 entry (deleted" in refused.err
+    assert "key_file" not in config_of(isolated_home)
+    assert cli(["github.com"], secrets=SECRETS).password == before
+
+
 def test_pinning_right_after_init_needs_no_force(fast, cli, tmp_path, isolated_home):
     assert cli(WORK + ["--init", "--user-id", USER2], secrets=INIT2).code == 0
     keyfile = tmp_path / "k.pw3f"
