@@ -98,6 +98,16 @@ def test_v2_files_are_deleted_only_on_confirmation(ready, v2_state, cli, isolate
     assert rerun.code == 0 and "No hosts.enc found" in rerun.out
 
 
+def test_a_named_profile_leaves_the_shared_v2_files_to_default(fast, v2_state, cli, isolated_home):
+    # ADR-0013 §5: a command acts on the selected profile and on nothing else.
+    work = ["--profile", "work"]
+    assert cli(work + ["--init", "--user-id", USER], secrets=[MASTER, MASTER, BOOST, BOOST, ACCESS, ACCESS]).code == 0
+    result = cli(work + ["--migrate-v2"], secrets=[V2_MASTER, ACCESS], inputs=["y"])
+    assert result.code == 0 and "Sites imported: 5" in result.out
+    assert "shared by every profile" in result.out and "default profile" in result.out
+    assert len(_v2_files(isolated_home)) == 5                       # kept, though a "y" was ready
+
+
 def test_old_and_new_passwords_go_to_kdbx(ready, v2_state, cli, tmp_path):
     pykeepass = pytest.importorskip("pykeepass")
     out = tmp_path / "pairs.kdbx"

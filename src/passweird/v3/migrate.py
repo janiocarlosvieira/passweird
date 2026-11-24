@@ -227,14 +227,14 @@ def cmd_migrate_v2(args, prompter, profile):
         if session is not None:
             session.close()
 
-    _offer_cleanup(args, prompter)
+    _offer_cleanup(args, prompter, profile)
     app.say("")
     app.say("Deleting a file does not erase it from an SSD, a snapshot or a backup. If this v2")
     app.say("master password was ever registered with --register-master, or its summary line")
     app.say("was shown or logged, treat it as exposed and do NOT reuse it as the v3 master.")
 
 
-def _offer_cleanup(args, prompter):
+def _offer_cleanup(args, prompter, profile):
     files = leftover_v2_files()
     if not files:
         return
@@ -242,6 +242,13 @@ def _offer_cleanup(args, prompter):
     app.say("v2 files still on this device:")
     for path in files:
         app.say(f"  {path}")
+    if not profile.is_default:
+        # They belong to no profile, and a command acts on the selected
+        # profile and on nothing else (ADR-0013 §5).
+        app.say(f"They are shared by every profile on this device, so profile '{profile.name}' does not")
+        app.say("offer to delete them: delete them from the default profile (its --migrate-v2 offers")
+        app.say("it), or by hand. master.hash can generate every v2 password: remove it soon.")
+        return
     if args.keep_v2_files:
         app.say("Kept (--keep-v2-files). master.hash can generate every v2 password: remove it soon.")
         return
